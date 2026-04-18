@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Alpaca Strategy Lab</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="hero">
+    <div>
+      <p class="eyebrow">Paper trading only</p>
+      <h1>Alpaca Strategy Lab</h1>
+      <p class="muted">ICT-style liquidity sweep workflow for spotting setups, scoring conviction, journaling, and sending paper orders to Alpaca.</p>
+    </div>
+    <div class="badge <%= credsConfigured ? 'good' : 'warn' %>">
+      <strong><%= credsConfigured ? 'Paper account connected' : 'No API creds yet' %></strong>
+      <span>This app never targets live trading.</span>
+    </div>
+  </header>
+
+  <% if (success) { %><div class="flash success"><%= success %></div><% } %>
+  <% if (error) { %><div class="flash error"><%= error %></div><% } %>
+  <% if (errors?.length) { %>
+    <div class="flash error"><%= errors.join(' | ') %></div>
+  <% } %>
+
+  <main class="grid">
+    <section class="card">
+      <h2>Strategy rules</h2>
+      <ol class="checklist">
+        <% checklistItems.forEach((item) => { %>
+          <li><%= item %></li>
+        <% }) %>
+      </ol>
+      <div class="mini-note">Bias: manual or semi-manual execution. Confirm the sweep, displacement, and structure shift yourself.</div>
+    </section>
+
+    <section class="card">
+      <h2>Paper account</h2>
+      <% if (account) { %>
+        <div class="stats">
+          <div><span>Equity</span><strong>$<%= Number(account.equity).toFixed(2) %></strong></div>
+          <div><span>Buying power</span><strong>$<%= Number(account.buying_power).toFixed(2) %></strong></div>
+          <div><span>Status</span><strong><%= account.status %></strong></div>
+          <div><span>Pattern day trader</span><strong><%= account.pattern_day_trader ? 'Yes' : 'No' %></strong></div>
+        </div>
+      <% } else { %>
+        <p class="muted">Add <code>ALPACA_API_KEY</code> and <code>ALPACA_SECRET_KEY</code> to connect your paper account.</p>
+      <% } %>
+    </section>
+
+    <section class="card wide">
+      <div class="split-head">
+        <h2>Watchlist</h2>
+        <form action="/watchlist" method="post" class="inline-form">
+          <input type="text" name="watchlist" value="<%= watchlist.join(', ') %>" />
+          <button type="submit">Save</button>
+        </form>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Symbol</th><th>Last</th><th>Bid</th><th>Ask</th><th>Timestamp</th><th>Status</th></tr></thead>
+          <tbody>
+            <% if (watchQuotes.length) { watchQuotes.forEach((row) => { %>
+              <tr>
+                <td><strong><%= row.symbol %></strong></td>
+                <td><%= row.last ? '$' + row.last.toFixed(2) : '—' %></td>
+                <td><%= row.bid ? '$' + row.bid.toFixed(2) : '—' %></td>
+                <td><%= row.ask ? '$' + row.ask.toFixed(2) : '—' %></td>
+                <td><%= row.timestamp ? new Date(row.timestamp).toLocaleString() : '—' %></td>
+                <td><%= row.error || 'OK' %></td>
+              </tr>
+            <% }) } else { %>
+              <tr><td colspan="6" class="muted">Watchlist data appears here once your paper API credentials are set.</td></tr>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Liquidity sweep checklist</h2>
+      <form action="/journal" method="post" class="stack-form">
+        <label>Symbol<input name="symbol" placeholder="AAPL" required /></label>
+        <label>Side<select name="side"><option value="buy">Buy after sell-side sweep</option><option value="sell">Sell after buy-side sweep</option></select></label>
+        <label>Liquidity level swept<input name="liquidityLevel" placeholder="Yesterday low / 5m equal lows" required /></label>
+        <label>Trade thesis<textarea name="thesis" placeholder="Sweep of London low, displacement back above range, aiming for NY open gap fill" required></textarea></label>
+        <label>Displacement evidence<input name="displacementSeen" placeholder="Strong bullish candle closed above sweep" /></label>
+        <label>Structure shift evidence<input name="structureShiftSeen" placeholder="5m MSS after reclaim" /></label>
+        <div class="two-col">
+          <label>Stop price<input type="number" name="stopPrice" step="0.01" required /></label>
+          <label>Target price<input type="number" name="targetPrice" step="0.01" required /></label>
+        </div>
+        <label>Checklist score (0-6)<input type="number" name="checklistScore" min="0" max="6" value="4" required /></label>
+        <label>Notes<textarea name="notes" placeholder="Session context, confluence, mistakes, outcome later"></textarea></label>
+        <button type="submit">Save setup to journal</button>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2>Submit paper order</h2>
+      <form action="/order" method="post" class="stack-form">
+        <label>Symbol<input name="symbol" placeholder="AAPL" required /></label>
+        <label>Side<select name="side"><option value="buy">Buy</option><option value="sell">Sell</option></select></label>
+        <div class="two-col">
+          <label>Quantity<input type="number" name="qty" step="1" min="1" required /></label>
+          <label>Time in force<select name="timeInForce"><option value="day">Day</option><option value="gtc">GTC</option></select></label>
+        </div>
+        <label>Order type<select name="type"><option value="market">Market</option><option value="limit">Limit</option></select></label>
+        <label>Limit price (if limit)<input type="number" name="limitPrice" step="0.01" /></label>
+        <button type="submit">Send paper order to Alpaca</button>
+      </form>
+      <p class="mini-note">This uses Alpaca's paper endpoint only. No live toggle exists in the app.</p>
+    </section>
+
+    <section class="card wide">
+      <h2>Open paper orders</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Symbol</th><th>Side</th><th>Qty</th><th>Type</th><th>Status</th><th>Submitted</th></tr></thead>
+          <tbody>
+            <% if (orders.length) { orders.forEach((order) => { %>
+              <tr>
+                <td><%= order.symbol %></td>
+                <td><%= order.side %></td>
+                <td><%= order.qty %></td>
+                <td><%= order.order_type %></td>
+                <td><%= order.status %></td>
+                <td><%= new Date(order.submitted_at).toLocaleString() %></td>
+              </tr>
+            <% }) } else { %>
+              <tr><td colspan="6" class="muted">No open paper orders.</td></tr>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card wide">
+      <h2>Journal</h2>
+      <div class="journal-list">
+        <% if (journal.length) { journal.forEach((entry) => { %>
+          <article class="journal-entry">
+            <div class="journal-top">
+              <strong><%= entry.symbol %></strong>
+              <span><%= entry.side %></span>
+              <span>Score <%= entry.checklistScore %>/6</span>
+              <span><%= new Date(entry.createdAt).toLocaleString() %></span>
+            </div>
+            <p><strong>Liquidity:</strong> <%= entry.liquidityLevel %></p>
+            <p><strong>Thesis:</strong> <%= entry.thesis %></p>
+            <p><strong>Risk box:</strong> stop <%= entry.stopPrice %>, target <%= entry.targetPrice %></p>
+            <% if (entry.notes) { %><p><strong>Notes:</strong> <%= entry.notes %></p><% } %>
+          </article>
+        <% }) } else { %>
+          <p class="muted">No journal entries yet. Log the setup before you click submit.</p>
+        <% } %>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
