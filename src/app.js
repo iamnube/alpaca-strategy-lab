@@ -119,14 +119,20 @@ const plannerSchema = z.object({
 const automationSettingsSchema = z.object({
   enabled: z.string().optional(),
   autoSubmit: z.string().optional(),
+  rotateWatchlist: z.string().optional(),
   pollIntervalSeconds: z.coerce.number().min(60).max(3600),
   timeframe: z.enum(automationTimeframes),
   lookbackBars: z.coerce.number().min(6).max(100),
+  signalWindowBars: z.coerce.number().min(1).max(5),
   minSweepPercent: z.coerce.number().min(0.01).max(5),
+  etfMinSweepPercent: z.coerce.number().min(0.01).max(5),
   minBodyToRangeRatio: z.coerce.number().min(0.05).max(1),
+  confirmationBodyToRangeRatio: z.coerce.number().min(0.05).max(1),
   rewardToRisk: z.coerce.number().min(1).max(10),
   maxOpenPositions: z.coerce.number().min(1).max(20),
   maxConcurrentOrdersPerSymbol: z.coerce.number().min(1).max(5),
+  maxWatchlistSymbols: z.coerce.number().min(1).max(30),
+  symbolsPerCycle: z.coerce.number().min(1).max(30),
   riskPerTrade: z.coerce.number().min(1).max(10000),
   stopBufferPercent: z.coerce.number().min(0).max(5),
   takeProfitBufferPercent: z.coerce.number().min(0).max(5),
@@ -135,6 +141,10 @@ const automationSettingsSchema = z.object({
 }).superRefine((settings, ctx) => {
   if (settings.maximumPrice <= settings.minimumPrice) {
     ctx.addIssue({ code: 'custom', path: ['maximumPrice'], message: 'Maximum price must be above minimum price.' });
+  }
+
+  if (settings.symbolsPerCycle > settings.maxWatchlistSymbols) {
+    ctx.addIssue({ code: 'custom', path: ['symbolsPerCycle'], message: 'Symbols per cycle cannot exceed the watchlist cap.' });
   }
 });
 
@@ -352,8 +362,8 @@ function maybeCreateAutomationJournalEntries(existingJournal, candidates) {
       side: candidate.side,
       thesis: candidate.reason,
       liquidityLevel: `${candidate.timeframe} automation sweep`,
-      displacementSeen: `Body ratio ${candidate.metrics?.bodyRatio ?? 'n/a'}`,
-      structureShiftSeen: 'Automation pattern match',
+      displacementSeen: `Trigger/confirm body ${candidate.metrics?.triggerBodyRatio ?? 'n/a'}/${candidate.metrics?.confirmationBodyRatio ?? 'n/a'}`,
+      structureShiftSeen: `Automation pattern match${candidate.metrics?.barsSinceSignal ? `, confirmed ${candidate.metrics.barsSinceSignal} bar(s) after sweep` : ''}`,
       entryPrice: candidate.entryPrice,
       stopPrice: candidate.stopPrice,
       targetPrice: candidate.targetPrice,
@@ -400,31 +410,34 @@ async function getDashboardData({ storage, createAlpacaClient, plannerInput, pla
   }
 
   try {
-    const [account, positions, orders, quotes] = await Promise.all([
+    const latestMarketDataPromise = typeof alpaca.getLatestQuotes === 'function' && typeof alpaca.getLatestTrades === 'function'
+      ? Promise.all([alpaca.getLatestQuotes(state.watchlist), alpaca.getLatestTrades(state.watchlist)])
+      : Promise.all([
+        Promise.all(state.watchlist.map(async (symbol) => [symbol, await alpaca.getLatestQuote(symbol)])),
+        Promise.all(state.watchlist.map(async (symbol) => [symbol, await alpaca.getLatestTrade(symbol)])),
+      ]).then(([quotes, trades]) => [new Map(quotes), new Map(trades)]);
+
+    const [account, positions, orders, [latestQuotes, latestTrades]] = await Promise.all([
       alpaca.getAccount(),
       alpaca.getPositions(),
       alpaca.getOrders({ status: 'open', direction: 'desc' }),
-      Promise.all(state.watchlist.map(async (symbol) => {
-        try {
-          const quote = await alpaca.getLatestQuote(symbol);
-          const trade = await alpaca.getLatestTrade(symbol);
-          return {
-            symbol,
-            bid: Number(quote.BidPrice || 0),
-            ask: Number(quote.AskPrice || 0),
-            last: Number(trade.Price || 0),
-            timestamp: trade.Timestamp || quote.Timestamp,
-          };
-        } catch (error) {
-          return { symbol, error: error.message };
-        }
-      })),
+      latestMarketDataPromise,
     ]);
 
     state.account = account;
     state.positions = positions;
     state.orders = orders;
-    state.watchQuotes = quotes;
+    state.watchQuotes = state.watchlist.map((symbol) => {
+      const quote = latestQuotes?.get?.(symbol);
+      const trade = latestTrades?.get?.(symbol);
+      return {
+        symbol,
+        bid: Number(quote?.BidPrice || 0),
+        ask: Number(quote?.AskPrice || 0),
+        last: Number(trade?.Price || 0),
+        timestamp: trade?.Timestamp || quote?.Timestamp || null,
+      };
+    });
   } catch (error) {
     state.errors.push(error.message);
   }
@@ -505,6 +518,7 @@ function createApp({ storage = createStorage(), createAlpacaClient = createDefau
         ...parsed.data,
         enabled: Boolean(req.body.enabled),
         autoSubmit: Boolean(req.body.autoSubmit),
+        rotateWatchlist: Boolean(req.body.rotateWatchlist),
       },
     });
     await automationEngine.start();

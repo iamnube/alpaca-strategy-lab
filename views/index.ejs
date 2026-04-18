@@ -78,12 +78,22 @@
         <div class="three-col">
           <label>Poll every seconds<input type="number" name="pollIntervalSeconds" min="60" max="3600" value="<%= automationSettings.pollIntervalSeconds %>" /></label>
           <label>Lookback bars<input type="number" name="lookbackBars" min="6" max="100" value="<%= automationSettings.lookbackBars %>" /></label>
+          <label>Signal window bars<input type="number" name="signalWindowBars" min="1" max="5" value="<%= automationSettings.signalWindowBars %>" /></label>
+        </div>
+        <div class="three-col">
           <label>Risk per trade ($)<input type="number" name="riskPerTrade" step="0.01" value="<%= automationSettings.riskPerTrade %>" /></label>
+          <label>Watchlist cap<input type="number" name="maxWatchlistSymbols" min="1" max="30" value="<%= automationSettings.maxWatchlistSymbols %>" /></label>
+          <label>Symbols per cycle<input type="number" name="symbolsPerCycle" min="1" max="30" value="<%= automationSettings.symbolsPerCycle || automationSettings.maxWatchlistSymbols %>" /></label>
         </div>
         <div class="three-col">
           <label>Min sweep % of price<input type="number" name="minSweepPercent" step="0.01" value="<%= automationSettings.minSweepPercent %>" /></label>
+          <label>ETF min sweep %<input type="number" name="etfMinSweepPercent" step="0.01" value="<%= automationSettings.etfMinSweepPercent %>" /></label>
           <label>Min body/range ratio<input type="number" name="minBodyToRangeRatio" step="0.01" value="<%= automationSettings.minBodyToRangeRatio %>" /></label>
+        </div>
+        <div class="three-col">
+          <label>Confirm body/range ratio<input type="number" name="confirmationBodyToRangeRatio" step="0.01" value="<%= automationSettings.confirmationBodyToRangeRatio %>" /></label>
           <label>Reward to risk<input type="number" name="rewardToRisk" step="0.1" value="<%= automationSettings.rewardToRisk %>" /></label>
+          <label class="checkbox-row"><input type="checkbox" name="rotateWatchlist" value="1" <%= automationSettings.rotateWatchlist ? 'checked' : '' %> /> Rotate watchlist chunks across cycles</label>
         </div>
         <div class="three-col">
           <label>Max open positions<input type="number" name="maxOpenPositions" min="1" value="<%= automationSettings.maxOpenPositions %>" /></label>
@@ -97,7 +107,7 @@
         </div>
         <button type="submit">Save automation settings</button>
       </form>
-      <p class="mini-note">Automation only scans the current watchlist and only uses Alpaca paper trading. Disable auto-submit to keep it in review-only mode.</p>
+      <p class="mini-note">Automation stays paper-only. It now checks the last few bars for sweep then reclaim/rejection confirmation, with slightly looser ETF thresholds and review-first defaults.</p>
       <div class="stats compact-stats top-gap">
         <div><span>Last summary</span><strong><%= automationStatus.lastSummary || '—' %></strong></div>
         <div><span>Runs</span><strong><%= automationStatus.runCount || 0 %></strong></div>
@@ -113,7 +123,7 @@
           <li><%= item %></li>
         <% }) %>
       </ol>
-      <div class="mini-note">Automation looks for a latest-bar sweep and reclaim/rejection with displacement. It is intentionally simple and inspectable.</div>
+      <div class="mini-note">Automation looks across the last few bars for a sweep, reclaim or rejection, and confirmation candle. It is still simple enough to inspect in the activity log.</div>
     </section>
 
     <section class="card">

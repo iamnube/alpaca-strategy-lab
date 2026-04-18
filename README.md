@@ -9,6 +9,7 @@ Alpaca Strategy Lab has moved beyond a simple journal app. It now supports:
 - manual and automated **paper** trade workflows
 - watchlist management across a broader symbol universe
 - recurring scan cycles while the server is running
+- chunked, rotating watchlist scans to reduce API pressure
 - candidate generation based on a simple, inspectable liquidity-sweep rule
 - optional automatic submission of **paper bracket orders**
 - risk sizing, workflow states, and post-trade review
@@ -20,6 +21,8 @@ Alpaca Strategy Lab has moved beyond a simple journal app. It now supports:
 While the app server is running, automation can:
 
 - scan the current watchlist on a configured interval
+- batch bar requests per cycle rather than one request per symbol
+- rotate through the watchlist in chunks so larger lists are not fully rescanned every pass
 - pull recent Alpaca bars using the paper/data APIs
 - evaluate the latest bar for a sweep-and-reclaim or sweep-and-reject setup
 - generate candidate trades with:
@@ -70,8 +73,9 @@ This is still intentionally understandable, not a black-box trading engine.
   - max concurrent orders per symbol
   - stop buffer
   - reward-to-risk
-  - watchlist size cap
+- watchlist size cap
 - clear automation activity log
+- explicit deferred/unchanged-bar logging when scans are skipped on purpose
 
 ## Current diversified watchlist
 
@@ -159,7 +163,23 @@ Then open:
 6. Use **Run scan now** to verify the rule behavior on the current market
 7. Review candidates and the automation activity log
 8. If results look sane, enable automation
-9. Only then consider enabling auto-submit, still paper-only
+9. Keep watchlist rotation enabled unless you intentionally want full rescans every cycle
+10. Only then consider enabling auto-submit, still paper-only
+
+## Tuned defaults in this pass
+
+- poll interval: 600 seconds
+- timeframe: 15 minute bars
+- watchlist cap: 24 symbols
+- symbols per cycle: 8
+- watchlist rotation: enabled
+- auto-submit: off in persisted settings
+- minimum sweep: 0.03% of price, 0.02% for supported ETFs
+- minimum body/range ratio: 0.18
+- confirmation body/range ratio: 0.15
+- reward to risk: 1.8R
+
+This lowers the default automation load from a full 24 symbol sweep every cycle to an 8 symbol rotating scan with batched market-data calls.
 
 ## Workflow and journaling features
 

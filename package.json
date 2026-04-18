@@ -25,5 +25,10 @@
     "eslint": "^9.25.1",
     "nodemon": "^3.1.14",
     "supertest": "^7.1.0"
+  },
+  "overrides": {
+    "@alpacahq/alpaca-trade-api": {
+      "axios": "^1.12.2"
+    }
   }
 }
