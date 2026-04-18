@@ -11,29 +11,41 @@
     <div>
       <p class="eyebrow">Paper trading only</p>
       <h1>Alpaca Strategy Lab</h1>
-      <p class="muted">ICT-style liquidity sweep workflow for spotting setups, scoring conviction, journaling, and sending paper orders to Alpaca.</p>
+      <p class="muted">Local liquidity-sweep lab with paper-only automation, guardrails, journaling, and execution logs.</p>
     </div>
     <div class="badge <%= credsConfigured ? 'good' : 'warn' %>">
       <strong><%= credsConfigured ? 'Paper account connected' : 'No API creds yet' %></strong>
-      <span>This app never targets live trading.</span>
+      <span>Live trading is not supported anywhere in this app.</span>
     </div>
   </header>
 
   <% if (success) { %><div class="flash success"><%= success %></div><% } %>
   <% if (error) { %><div class="flash error"><%= error %></div><% } %>
-  <% if (errors?.length) { %>
-    <div class="flash error"><%= errors.join(' | ') %></div>
-  <% } %>
+  <% if (errors?.length) { %><div class="flash error"><%= errors.join(' | ') %></div><% } %>
 
   <main class="grid">
+    <section class="card wide stats-band">
+      <div><span>Total ideas</span><strong><%= journalSummary.total %></strong></div>
+      <div><span>Open workflows</span><strong><%= journalSummary.open %></strong></div>
+      <div><span>Auto candidates</span><strong><%= automationCandidates.length %></strong></div>
+      <div><span>Auto status</span><strong><%= automationSettings.enabled ? (automationSettings.autoSubmit ? 'Enabled + submit' : 'Enabled') : 'Disabled' %></strong></div>
+      <div><span>Last automation run</span><strong><%= automationStatus.lastRunAt ? new Date(automationStatus.lastRunAt).toLocaleTimeString() : '—' %></strong></div>
+      <div><span>Expectancy</span><strong><%= journalSummary.expectancyR !== null ? journalSummary.expectancyR + 'R' : '—' %></strong></div>
+    </section>
+
     <section class="card">
-      <h2>Strategy rules</h2>
-      <ol class="checklist">
-        <% checklistItems.forEach((item) => { %>
-          <li><%= item %></li>
+      <h2>Workflow state</h2>
+      <div class="workflow-list">
+        <% workflow.forEach((item) => { %>
+          <article class="workflow-item">
+            <div class="status-dot <%= item.status %>"></div>
+            <div>
+              <strong><%= item.label %></strong>
+              <p class="muted"><%= item.detail %></p>
+            </div>
+          </article>
         <% }) %>
-      </ol>
-      <div class="mini-note">Bias: manual or semi-manual execution. Confirm the sweep, displacement, and structure shift yourself.</div>
+      </div>
     </section>
 
     <section class="card">
@@ -52,7 +64,88 @@
 
     <section class="card wide">
       <div class="split-head">
-        <h2>Watchlist</h2>
+        <h2>Automation controls</h2>
+        <form action="/automation/run" method="post" class="inline-form compact-actions">
+          <button type="submit">Run scan now</button>
+        </form>
+      </div>
+      <form action="/automation/settings" method="post" class="stack-form">
+        <div class="three-col">
+          <label class="checkbox-row"><input type="checkbox" name="enabled" value="1" <%= automationSettings.enabled ? 'checked' : '' %> /> Enable automation</label>
+          <label class="checkbox-row"><input type="checkbox" name="autoSubmit" value="1" <%= automationSettings.autoSubmit ? 'checked' : '' %> /> Auto-place paper bracket orders</label>
+          <label>Timeframe<select name="timeframe"><% automationTimeframes.forEach((timeframe) => { %><option value="<%= timeframe %>" <%= automationSettings.timeframe === timeframe ? 'selected' : '' %>><%= timeframe %></option><% }) %></select></label>
+        </div>
+        <div class="three-col">
+          <label>Poll every seconds<input type="number" name="pollIntervalSeconds" min="60" max="3600" value="<%= automationSettings.pollIntervalSeconds %>" /></label>
+          <label>Lookback bars<input type="number" name="lookbackBars" min="6" max="100" value="<%= automationSettings.lookbackBars %>" /></label>
+          <label>Risk per trade ($)<input type="number" name="riskPerTrade" step="0.01" value="<%= automationSettings.riskPerTrade %>" /></label>
+        </div>
+        <div class="three-col">
+          <label>Min sweep % of price<input type="number" name="minSweepPercent" step="0.01" value="<%= automationSettings.minSweepPercent %>" /></label>
+          <label>Min body/range ratio<input type="number" name="minBodyToRangeRatio" step="0.01" value="<%= automationSettings.minBodyToRangeRatio %>" /></label>
+          <label>Reward to risk<input type="number" name="rewardToRisk" step="0.1" value="<%= automationSettings.rewardToRisk %>" /></label>
+        </div>
+        <div class="three-col">
+          <label>Max open positions<input type="number" name="maxOpenPositions" min="1" value="<%= automationSettings.maxOpenPositions %>" /></label>
+          <label>Max open orders per symbol<input type="number" name="maxConcurrentOrdersPerSymbol" min="1" value="<%= automationSettings.maxConcurrentOrdersPerSymbol %>" /></label>
+          <label>Stop buffer %<input type="number" name="stopBufferPercent" step="0.01" value="<%= automationSettings.stopBufferPercent %>" /></label>
+        </div>
+        <div class="three-col">
+          <label>Take-profit buffer %<input type="number" name="takeProfitBufferPercent" step="0.01" value="<%= automationSettings.takeProfitBufferPercent %>" /></label>
+          <label>Minimum price<input type="number" name="minimumPrice" step="0.01" value="<%= automationSettings.minimumPrice %>" /></label>
+          <label>Maximum price<input type="number" name="maximumPrice" step="0.01" value="<%= automationSettings.maximumPrice %>" /></label>
+        </div>
+        <button type="submit">Save automation settings</button>
+      </form>
+      <p class="mini-note">Automation only scans the current watchlist and only uses Alpaca paper trading. Disable auto-submit to keep it in review-only mode.</p>
+      <div class="stats compact-stats top-gap">
+        <div><span>Last summary</span><strong><%= automationStatus.lastSummary || '—' %></strong></div>
+        <div><span>Runs</span><strong><%= automationStatus.runCount || 0 %></strong></div>
+        <div><span>Last error</span><strong><%= automationStatus.lastError || 'None' %></strong></div>
+        <div><span>Watchlist scope</span><strong><%= watchlist.length %> symbols</strong></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Strategy rules</h2>
+      <ol class="checklist">
+        <% checklistItems.forEach((item) => { %>
+          <li><%= item %></li>
+        <% }) %>
+      </ol>
+      <div class="mini-note">Automation looks for a latest-bar sweep and reclaim/rejection with displacement. It is intentionally simple and inspectable.</div>
+    </section>
+
+    <section class="card">
+      <h2>Risk sizing helper</h2>
+      <form action="/" method="get" class="stack-form">
+        <label>Symbol<input name="planSymbol" value="<%= plannerInput?.symbol || '' %>" placeholder="AAPL" /></label>
+        <label>Side<select name="planSide"><option value="buy" <%= plannerInput?.side === 'buy' ? 'selected' : '' %>>Buy</option><option value="sell" <%= plannerInput?.side === 'sell' ? 'selected' : '' %>>Sell</option></select></label>
+        <div class="two-col">
+          <label>Entry price<input type="number" name="planEntryPrice" step="0.01" value="<%= plannerInput?.entryPrice || '' %>" required /></label>
+          <label>Stop price<input type="number" name="planStopPrice" step="0.01" value="<%= plannerInput?.stopPrice || '' %>" required /></label>
+        </div>
+        <div class="two-col">
+          <label>Target price<input type="number" name="planTargetPrice" step="0.01" value="<%= plannerInput?.targetPrice || '' %>" required /></label>
+          <label>Risk budget ($)<input type="number" name="planRiskAmount" step="0.01" value="<%= plannerInput?.riskAmount || '' %>" required /></label>
+        </div>
+        <button type="submit">Calculate size</button>
+      </form>
+      <% if (plannerResult && !plannerResult.error) { %>
+        <div class="planner-grid">
+          <div><span>Shares</span><strong><%= plannerResult.qty %></strong></div>
+          <div><span>Risk/share</span><strong>$<%= plannerResult.riskPerShare %></strong></div>
+          <div><span>Reward/share</span><strong>$<%= plannerResult.rewardPerShare %></strong></div>
+          <div><span>R multiple</span><strong><%= plannerResult.rewardToRisk %>R</strong></div>
+          <div><span>Total risk</span><strong>$<%= plannerResult.totalRisk %></strong></div>
+          <div><span>Notional</span><strong>$<%= plannerResult.notional %></strong></div>
+        </div>
+      <% } %>
+    </section>
+
+    <section class="card wide">
+      <div class="split-head">
+        <h2>Watchlist scope</h2>
         <form action="/watchlist" method="post" class="inline-form">
           <input type="text" name="watchlist" value="<%= watchlist.join(', ') %>" />
           <button type="submit">Save</button>
@@ -79,39 +172,74 @@
       </div>
     </section>
 
-    <section class="card">
-      <h2>Liquidity sweep checklist</h2>
-      <form action="/journal" method="post" class="stack-form">
-        <label>Symbol<input name="symbol" placeholder="AAPL" required /></label>
-        <label>Side<select name="side"><option value="buy">Buy after sell-side sweep</option><option value="sell">Sell after buy-side sweep</option></select></label>
-        <label>Liquidity level swept<input name="liquidityLevel" placeholder="Yesterday low / 5m equal lows" required /></label>
-        <label>Trade thesis<textarea name="thesis" placeholder="Sweep of London low, displacement back above range, aiming for NY open gap fill" required></textarea></label>
-        <label>Displacement evidence<input name="displacementSeen" placeholder="Strong bullish candle closed above sweep" /></label>
-        <label>Structure shift evidence<input name="structureShiftSeen" placeholder="5m MSS after reclaim" /></label>
-        <div class="two-col">
-          <label>Stop price<input type="number" name="stopPrice" step="0.01" required /></label>
-          <label>Target price<input type="number" name="targetPrice" step="0.01" required /></label>
-        </div>
-        <label>Checklist score (0-6)<input type="number" name="checklistScore" min="0" max="6" value="4" required /></label>
-        <label>Notes<textarea name="notes" placeholder="Session context, confluence, mistakes, outcome later"></textarea></label>
-        <button type="submit">Save setup to journal</button>
-      </form>
+    <section class="card wide">
+      <h2>Automation activity log</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Time</th><th>Symbol</th><th>Type</th><th>Detail</th></tr></thead>
+          <tbody>
+            <% if (automationStatus.activity?.length) { automationStatus.activity.forEach((item) => { %>
+              <tr>
+                <td><%= item.at ? new Date(item.at).toLocaleString() : '—' %></td>
+                <td><%= item.symbol %></td>
+                <td><span class="pill"><%= item.type %></span></td>
+                <td><%= item.detail %></td>
+              </tr>
+            <% }) } else { %>
+              <tr><td colspan="4" class="muted">No automation activity yet.</td></tr>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
     </section>
 
-    <section class="card">
-      <h2>Submit paper order</h2>
-      <form action="/order" method="post" class="stack-form">
-        <label>Symbol<input name="symbol" placeholder="AAPL" required /></label>
-        <label>Side<select name="side"><option value="buy">Buy</option><option value="sell">Sell</option></select></label>
-        <div class="two-col">
-          <label>Quantity<input type="number" name="qty" step="1" min="1" required /></label>
-          <label>Time in force<select name="timeInForce"><option value="day">Day</option><option value="gtc">GTC</option></select></label>
-        </div>
-        <label>Order type<select name="type"><option value="market">Market</option><option value="limit">Limit</option></select></label>
-        <label>Limit price (if limit)<input type="number" name="limitPrice" step="0.01" /></label>
-        <button type="submit">Send paper order to Alpaca</button>
-      </form>
-      <p class="mini-note">This uses Alpaca's paper endpoint only. No live toggle exists in the app.</p>
+    <section class="card wide">
+      <h2>Automation candidates</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Created</th><th>Symbol</th><th>Side</th><th>Entry</th><th>Stop</th><th>Target</th><th>Qty</th><th>Status</th><th>Why</th></tr></thead>
+          <tbody>
+            <% if (automationCandidates.length) { automationCandidates.forEach((candidate) => { %>
+              <tr>
+                <td><%= new Date(candidate.createdAt).toLocaleString() %></td>
+                <td><%= candidate.symbol %></td>
+                <td><%= candidate.side %></td>
+                <td>$<%= candidate.entryPrice %></td>
+                <td>$<%= candidate.stopPrice %></td>
+                <td>$<%= candidate.targetPrice %></td>
+                <td><%= candidate.qty %></td>
+                <td><%= candidate.status %></td>
+                <td><%= candidate.reason %></td>
+              </tr>
+            <% }) } else { %>
+              <tr><td colspan="9" class="muted">No automation candidates yet.</td></tr>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card wide">
+      <h2>Open positions</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Symbol</th><th>Side</th><th>Qty</th><th>Avg entry</th><th>Market value</th><th>Unrealized P/L</th></tr></thead>
+          <tbody>
+            <% if (positions.length) { positions.forEach((position) => { %>
+              <tr>
+                <td><%= position.symbol %></td>
+                <td><%= Number(position.qty) >= 0 ? 'long' : 'short' %></td>
+                <td><%= position.qty %></td>
+                <td>$<%= Number(position.avg_entry_price).toFixed(2) %></td>
+                <td>$<%= Number(position.market_value).toFixed(2) %></td>
+                <td><%= Number(position.unrealized_pl).toFixed(2) %></td>
+              </tr>
+            <% }) } else { %>
+              <tr><td colspan="6" class="muted">No open paper positions.</td></tr>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
     </section>
 
     <section class="card wide">
@@ -137,6 +265,70 @@
       </div>
     </section>
 
+    <section class="card">
+      <h2>Pre-trade journal</h2>
+      <form action="/journal" method="post" class="stack-form">
+        <label>Symbol<input name="symbol" placeholder="AAPL" required /></label>
+        <label>Side<select name="side"><option value="buy">Buy after sell-side sweep</option><option value="sell">Sell after buy-side sweep</option></select></label>
+        <label>Liquidity level swept<input name="liquidityLevel" placeholder="Yesterday low / 5m equal lows" required /></label>
+        <label>Trade thesis<textarea name="thesis" placeholder="Sweep of session low, reclaim, displacement, targeting range high" required></textarea></label>
+        <label>Displacement evidence<input name="displacementSeen" placeholder="Strong candle close away from sweep" /></label>
+        <label>Structure shift evidence<input name="structureShiftSeen" placeholder="5m MSS after reclaim" /></label>
+        <div class="three-col">
+          <label>Entry price<input type="number" name="entryPrice" step="0.01" required /></label>
+          <label>Stop price<input type="number" name="stopPrice" step="0.01" required /></label>
+          <label>Target price<input type="number" name="targetPrice" step="0.01" required /></label>
+        </div>
+        <div class="three-col">
+          <label>Risk budget ($)<input type="number" name="riskAmount" step="0.01" placeholder="50" /></label>
+          <label>Planned quantity<input type="number" name="plannedQty" step="1" min="1" placeholder="20" /></label>
+          <label>Workflow state<select name="status"><% statusOptions.forEach((status) => { %><option value="<%= status %>"><%= status %></option><% }) %></select></label>
+        </div>
+        <label>Checklist score (0-6)<input type="number" name="checklistScore" min="0" max="6" value="4" required /></label>
+        <label>Notes<textarea name="notes" placeholder="Context, invalidation, review reminders"></textarea></label>
+        <button type="submit">Save setup to journal</button>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2>Submit paper order</h2>
+      <form action="/order" method="post" class="stack-form">
+        <label>Symbol<input name="symbol" placeholder="AAPL" required /></label>
+        <label>Side<select name="side"><option value="buy">Buy</option><option value="sell">Sell</option></select></label>
+        <div class="two-col">
+          <label>Quantity<input type="number" name="qty" step="1" min="1" required /></label>
+          <label>Time in force<select name="timeInForce"><option value="day">Day</option><option value="gtc">GTC</option></select></label>
+        </div>
+        <label>Order type<select name="type"><option value="market">Market</option><option value="limit">Limit</option></select></label>
+        <label>Limit price (if limit)<input type="number" name="limitPrice" step="0.01" /></label>
+        <label class="checkbox-row"><input type="checkbox" name="useBracket" value="1" /> Add bracket exits</label>
+        <div class="two-col">
+          <label>Take-profit price<input type="number" name="takeProfitPrice" step="0.01" /></label>
+          <label>Stop-loss price<input type="number" name="stopLossPrice" step="0.01" /></label>
+        </div>
+        <button type="submit">Send paper order to Alpaca</button>
+      </form>
+      <p class="mini-note">Still paper-only. Manual order entry remains available even if automation is off.</p>
+    </section>
+
+    <section class="card">
+      <h2>Quick analytics</h2>
+      <% if (journalSummary.topSymbols.length) { %>
+        <div class="tag-list">
+          <% journalSummary.topSymbols.forEach((symbol) => { %>
+            <div class="tag-card">
+              <strong><%= symbol.symbol %></strong>
+              <span><%= symbol.count %> ideas</span>
+              <span><%= symbol.winRate !== null ? symbol.winRate + '% win' : '—' %></span>
+              <span><%= symbol.realizedR %>R</span>
+            </div>
+          <% }) %>
+        </div>
+      <% } else { %>
+        <p class="muted">Analytics fill in as you close out journal entries.</p>
+      <% } %>
+    </section>
+
     <section class="card wide">
       <h2>Journal</h2>
       <div class="journal-list">
@@ -144,14 +336,39 @@
           <article class="journal-entry">
             <div class="journal-top">
               <strong><%= entry.symbol %></strong>
-              <span><%= entry.side %></span>
+              <span class="pill"><%= entry.side %></span>
+              <span class="pill state-<%= entry.status %>"><%= entry.status %></span>
               <span>Score <%= entry.checklistScore %>/6</span>
               <span><%= new Date(entry.createdAt).toLocaleString() %></span>
             </div>
-            <p><strong>Liquidity:</strong> <%= entry.liquidityLevel %></p>
+            <div class="journal-grid">
+              <p><strong>Liquidity:</strong> <%= entry.liquidityLevel %></p>
+              <p><strong>Prices:</strong> entry <%= entry.entryPrice %>, stop <%= entry.stopPrice %>, target <%= entry.targetPrice %></p>
+              <p><strong>Plan:</strong> <%= entry.riskPerShare %>/share risk, <%= entry.plannedR || '—' %>R planned, qty <%= entry.plannedQty || '—' %></p>
+              <p><strong>Budget:</strong> <%= entry.riskAmount ? '$' + entry.riskAmount : '—' %> risked</p>
+              <p><strong>Displacement:</strong> <%= entry.displacementSeen || '—' %></p>
+              <p><strong>Structure:</strong> <%= entry.structureShiftSeen || '—' %></p>
+            </div>
             <p><strong>Thesis:</strong> <%= entry.thesis %></p>
-            <p><strong>Risk box:</strong> stop <%= entry.stopPrice %>, target <%= entry.targetPrice %></p>
             <% if (entry.notes) { %><p><strong>Notes:</strong> <%= entry.notes %></p><% } %>
+            <% if (entry.outcomeNotes) { %><p><strong>Outcome:</strong> <%= entry.outcomeNotes %></p><% } %>
+
+            <form action="/journal/<%= entry.id %>/review" method="post" class="review-form">
+              <label>Status
+                <select name="status">
+                  <% statusOptions.forEach((status) => { %>
+                    <option value="<%= status %>" <%= entry.status === status ? 'selected' : '' %>><%= status %></option>
+                  <% }) %>
+                </select>
+              </label>
+              <label>Realized R
+                <input type="number" name="realizedR" step="0.01" value="<%= entry.realizedR ?? '' %>" placeholder="1.5" />
+              </label>
+              <label class="grow">Review note
+                <input type="text" name="outcomeNotes" value="<%= entry.outcomeNotes || '' %>" placeholder="Why it worked, failed, or got scratched" />
+              </label>
+              <button type="submit">Update review</button>
+            </form>
           </article>
         <% }) } else { %>
           <p class="muted">No journal entries yet. Log the setup before you click submit.</p>

@@ -1,0 +1,215 @@
+{
+  "lastRunAt": "2026-04-18T17:25:32.169Z",
+  "lastRunStartedAt": "2026-04-18T17:25:30.224Z",
+  "lastHeartbeatAt": "2026-04-18T17:25:30.224Z",
+  "lastError": null,
+  "lastSummary": "Scanned 24 symbols, no trades taken.",
+  "runCount": 34,
+  "candidates": [],
+  "activity": [
+    {
+      "at": "2026-04-18T17:25:30.567Z",
+      "symbol": "AAPL",
+      "type": "blocked",
+      "detail": "No qualifying liquidity sweep on the latest bar."
+    },
+    {
+      "at": "2026-04-18T17:25:30.624Z",
+      "symbol": "MSFT",
+      "type": "blocked",
+      "detail": "No qualifying liquidity sweep on the latest bar."
+    },
+    {
+      "at": "2026-04-18T17:25:30.711Z",
+      "symbol": "NVDA",
+      "type": "blocked",
+      "detail": "No qualifying liquidity sweep on the latest bar."
+    },
+    {
+      "at": "2026-04-18T17:25:30.770Z",
+      "symbol": "AMZN",
+      "type": "blocked",
+      "detail": "No qualifying liquidity sweep on the latest bar."
+    },
+    {
+      "at": "2026-04-18T17:25:30.829Z",
+      "symbol": "GOOGL",
+      "type": "blocked",
+      "detail": "Displacement too weak. Body/range 0.12 below 0.4."
+    },
+    {
+      "at": "2026-04-18T17:25:30.887Z",
+      "symbol": "META",
+      "type": "blocked",
+      "detail": "No qualifying liquidity sweep on the latest bar."
+    },
+    {
+      "at": "2026-04-18T17:25:30.942Z",
+      "symbol": "AVGO",
+      "type": "blocked",
+      "detail": "Displacement too weak. Body/range 0.26 below 0.4."
+    },
+    {
+      "at": "2026-04-18T17:25:31.001Z",
+      "symbol": "JPM",
+      "type": "blocked",
+      "detail": "Displacement too weak. Body/range 0.33 below 0.4."
+    },
+    {
+      "at": "2026-04-18T17:25:31.057Z",
+      "symbol": "V",
+      "type": "blocked",
+      "detail": "No qualifying liquidity sweep on the latest bar."
+    },
+    {
+      "at": "2026-04-18T17:25:31.131Z",
+      "symbol": "MA",
+      "type": "blocked",
+      "detail": "No qualifying liquidity sweep on the latest bar."
+    },
+    {
+      "at": "2026-04-18T17:25:31.187Z",
+      "symbol": "LLY",
+      "type": "blocked",
+      "detail": "No qualifying liquidity sweep on the latest bar."
+    },
+    {
+      "at": "2026-04-18T17:25:31.237Z",
+      "symbol": "JNJ",
+      "type": "blocked",
+      "detail": "No qualifying liquidity sweep on the latest bar."
+    },
+    {
+      "at": "2026-04-18T17:25:31.334Z",
+      "symbol": "XOM",
+      "type": "blocked",
+      "detail": "No qualifying liquidity sweep on the latest bar."
+    },
+    {
+      "at": "2026-04-18T17:25:31.397Z",
+      "symbol": "CVX",
+      "type": "blocked",
+      "detail": "No qualifying liquidity sweep on the latest bar."
+    },
+    {
+      "at": "2026-04-18T17:25:31.452Z",
+      "symbol": "CAT",
+      "type": "blocked",
+      "detail": "No qualifying liquidity sweep on the latest bar."
+    },
+    {
+      "at": "2026-04-18T17:25:31.518Z",
+      "symbol": "GE",
+      "type": "blocked",
+      "detail": "No qualifying liquidity sweep on the latest bar."
+    },
+    {
+      "at": "2026-04-18T17:25:31.606Z",
+      "symbol": "UNH",
+      "type": "blocked",
+      "detail": "No qualifying liquidity sweep on the latest bar."
+    },
+    {
+      "at": "2026-04-18T17:25:31.670Z",
+      "symbol": "HD",
+      "type": "blocked",
+      "detail": "Displacement too weak. Body/range 0.32 below 0.4."
+    },
+    {
+      "at": "2026-04-18T17:25:31.720Z",
+      "symbol": "COST",
+      "type": "blocked",
+      "detail": "No qualifying liquidity sweep on the latest bar."
+    },
+    {
+      "at": "2026-04-18T17:25:31.772Z",
+      "symbol": "WMT",
+      "type": "blocked",
+      "detail": "No qualifying liquidity sweep on the latest bar."
+    },
+    {
+      "at": "2026-04-18T17:25:31.826Z",
+      "symbol": "VXUS",
+      "type": "blocked",
+      "detail": "Displacement too weak. Body/range 0.18 below 0.4."
+    },
+    {
+      "at": "2026-04-18T17:25:31.894Z",
+      "symbol": "EFA",
+      "type": "blocked",
+      "detail": "No qualifying liquidity sweep on the latest bar."
+    },
+    {
+      "at": "2026-04-18T17:25:32.117Z",
+      "symbol": "EWJ",
+      "type": "blocked",
+      "detail": "Displacement too weak. Body/range 0.07 below 0.4."
+    },
+    {
+      "at": "2026-04-18T17:25:32.169Z",
+      "symbol": "EEM",
+      "type": "blocked",
+      "detail": "No qualifying liquidity sweep on the latest bar."
+    },
+    {
+      "at": "2026-04-18T17:20:30.680Z",
+      "symbol": "SPY",
+      "type": "blocked",
+      "detail": "No qualifying liquidity sweep on the latest bar."
+    },
+    {
+      "at": "2026-04-18T17:20:30.740Z",
+      "symbol": "QQQ",
+      "type": "blocked",
+      "detail": "No qualifying liquidity sweep on the latest bar."
+    },
+    {
+      "at": "2026-04-18T17:20:30.794Z",
+      "symbol": "AAPL",
+      "type": "blocked",
+      "detail": "No qualifying liquidity sweep on the latest bar."
+    },
+    {
+      "at": "2026-04-18T17:15:44.544Z",
+      "symbol": "SPY",
+      "type": "blocked",
+      "detail": "Displacement too weak. Body/range 0.07 below 0.4."
+    },
+    {
+      "at": "2026-04-18T17:15:44.604Z",
+      "symbol": "QQQ",
+      "type": "blocked",
+      "detail": "Displacement too weak. Body/range 0.33 below 0.4."
+    },
+    {
+      "at": "2026-04-18T17:15:44.660Z",
+      "symbol": "AAPL",
+      "type": "blocked",
+      "detail": "No qualifying liquidity sweep on the latest bar."
+    },
+    {
+      "at": "2026-04-18T17:15:24.521Z",
+      "symbol": "SPY",
+      "type": "blocked",
+      "detail": "Displacement too weak. Body/range 0.07 below 0.4."
+    },
+    {
+      "at": "2026-04-18T17:15:24.582Z",
+      "symbol": "QQQ",
+      "type": "blocked",
+      "detail": "Displacement too weak. Body/range 0.33 below 0.4."
+    },
+    {
+      "at": "2026-04-18T17:15:24.645Z",
+      "symbol": "AAPL",
+      "type": "blocked",
+      "detail": "No qualifying liquidity sweep on the latest bar."
+    },
+    {
+      "at": "2026-04-18T17:14:51.274Z",
+      "symbol": "SYSTEM",
+      "type": "error",
+      "detail": "code: 403, message: subscription does not permit querying recent SIP data"
+    }
+  ]
+}

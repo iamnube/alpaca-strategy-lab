@@ -1,29 +1,42 @@
 # Alpaca Strategy Lab
 
-A local MVP dashboard for paper trading an ICT-style liquidity sweep workflow with Alpaca paper trading.
+Local paper-trading dashboard and automation runner for a simple liquidity-sweep workflow on Alpaca paper trading.
 
-## What it does
+## What automation does now
 
-- Shows a paper-trading-only status banner
-- Encodes the strategy into a checklist inside the app
-- Displays Alpaca paper account status when credentials are present
-- Lets you maintain a watchlist and see latest quote/trade data
-- Gives you a manual setup checklist form and persistent journal
-- Lets you submit paper market or limit orders to Alpaca
-- Stores journal entries and watchlist locally in `data/`
+- Runs a scheduled scan on the current watchlist while the app server is running
+- Pulls recent Alpaca bars on a selected timeframe, then evaluates a practical sweep-and-reclaim / sweep-and-reject rule
+- Generates paper trade candidates with entry, stop, target, quantity, and reason text
+- Can stay in review-only mode or automatically place paper bracket orders when auto-submit is enabled
+- Tracks automation runs, candidate history, activity logs, open positions, open orders, and journal workflows
+- Persists local settings and automation status under `data/`
 
-## Guardrails
+## Safety controls
 
-- This app uses Alpaca's **paper** API mode only
-- There is **no live trading toggle** in the UI
-- It is built for manual or semi-manual execution, not blind automation
+- Paper-only labeling across the app
+- No live mode, no live toggle, no live endpoint support
+- Automation enable/disable toggle
+- Watchlist-only scope control
+- Risk guardrails: risk per trade, max open positions, max open orders per symbol, price bounds, stop buffer, reward/risk
+- Clear logs explaining why a trade was taken, skipped, blocked, or failed
 
-## Stack
+## Strategy logic in this MVP
 
-- Node.js
-- Express + EJS
-- Alpaca Trade API SDK
-- Local JSON persistence
+Automation looks only at the latest bar on the chosen timeframe:
+
+- **Buy candidate:** latest bar sweeps below the recent rolling low, closes back above that low, and closes bullish with minimum displacement
+- **Sell candidate:** latest bar sweeps above the recent rolling high, closes back below that high, and closes bearish with minimum displacement
+- Entry defaults to a paper limit at the trigger close
+- Stop uses the trigger extreme plus configurable buffer
+- Target uses configured reward-to-risk
+- Quantity uses configured dollar risk per trade
+
+This is intentionally understandable, inspectable, and local, not a black-box strategy engine.
+
+## Requirements
+
+- Node.js 22+ recommended
+- Alpaca paper account credentials for quotes, bars, positions, and order placement
 
 ## Setup
 
@@ -31,61 +44,80 @@ A local MVP dashboard for paper trading an ICT-style liquidity sweep workflow wi
 cd /Users/openclaw/.openclaw/workspace/alpaca-strategy-lab
 cp .env.example .env
 npm install
-npm run dev
 ```
 
-Then open:
-
-```bash
-http://localhost:3000
-```
-
-## Required env vars for Alpaca paper trading
+Fill in `.env`:
 
 ```env
 PORT=3000
+APP_DATA_DIR=./data
 ALPACA_API_KEY=your_paper_key_here
 ALPACA_SECRET_KEY=your_paper_secret_here
 ```
 
-Get these from your Alpaca paper account, not live trading credentials.
+## Run
+
+Development:
+
+```bash
+npm run dev
+```
+
+Normal run:
+
+```bash
+npm start
+```
+
+Then open `http://localhost:3000`.
+
+## First-use flow
+
+1. Add your Alpaca **paper** keys to `.env`
+2. Start the app
+3. Set the watchlist scope
+4. Configure automation settings
+5. Leave **Auto-place paper bracket orders** off if you want review-only mode first
+6. Use **Run scan now** to validate the rule behavior
+7. If the logs and candidates look sane, enable automation and optionally auto-submit
 
 ## Scripts
 
 ```bash
 npm run dev
 npm start
+npm test
+npm run lint
+npm run check
 ```
 
-## Recommended workflow
+## Data files
 
-1. Mark the liquidity levels you care about before the session.
-2. Watch for a sweep of those highs/lows.
-3. Confirm displacement and structure shift.
-4. Fill out the checklist form before placing the trade.
-5. Save the setup to the journal.
-6. If it still looks valid, submit the paper order.
-7. Review the journal later and refine the checklist.
+- `data/settings.json` - watchlist plus automation settings
+- `data/automation-status.json` - latest runs, candidates, activity log, errors
+- `data/journal.json` - manual and automation-created workflows
 
-## Project structure
+## Validated
 
-```text
-src/server.js       Express app
-views/index.ejs     UI
-public/styles.css   Styling
-data/               Local watchlist and journal storage
-```
+`npm run check` currently passes and covers:
 
-## Notes for later
+- default app boot and isolated storage creation
+- watchlist normalization and persistence
+- automation settings persistence
+- journal create and review flows
+- sizing math
+- sweep-rule candidate generation
+- paper order validation and normalized payloads
+- automation cycle auto-submit behavior with mocked Alpaca data
+- connected dashboard rendering
 
-Potential next upgrades:
+## Still requires manual review
 
-- Auto-detect sweep candidates from candle data
-- Better journaling metrics, screenshots, and P/L tracking
-- Bracket orders and risk sizing helpers
-- Multi-timeframe market structure panels
-- Authentication if you want remote access
+- Strategy quality, symbol selection, and whether the latest-bar setup is actually worth taking
+- Market regime and session context, this MVP does not understand news or calendar events
+- Whether auto-submit should be enabled for your account and watchlist
+- Post-trade review and journal grading
 
 ## Safety note
 
-This is educational tooling for paper trading workflow support. Validate everything yourself before acting.
+This project is for paper trading workflow automation only. Validate behavior yourself before trusting the automation, and do not adapt it to live trading.
