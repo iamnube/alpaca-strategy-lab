@@ -70,10 +70,10 @@ async function main() {
     process.exit(2)
   }
 
-  const keyId = process.env.ALPACA_KEY_ID
+  const keyId = process.env.ALPACA_KEY_ID || process.env.ALPACA_API_KEY
   const secretKey = process.env.ALPACA_SECRET_KEY
   if (!keyId || !secretKey) {
-    console.error('Missing ALPACA_KEY_ID / ALPACA_SECRET_KEY in environment (.env).')
+    console.error('Missing ALPACA_API_KEY (or ALPACA_KEY_ID) / ALPACA_SECRET_KEY in environment (.env).')
     process.exit(2)
   }
 
