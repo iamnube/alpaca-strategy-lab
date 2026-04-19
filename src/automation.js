@@ -14,6 +14,7 @@ const automationDefaults = {
   rewardToRisk: 1.8,
   maxOpenPositions: 3,
   maxConcurrentOrdersPerSymbol: 1,
+  cooldownBars: 0,
   watchlistScope: 'watchlist',
   maxWatchlistSymbols: 30,
   symbolsPerCycle: 8,
@@ -422,11 +423,25 @@ async function runAutomationCycle({ storage, createAlpacaClient, logger = () => 
       status.symbolStates[symbol] = {
         lastBarTimestamp: latestBar.timestamp || null,
         lastProcessedAt: new Date().toISOString(),
+        lastSignalBarTimestamp: previousState.lastSignalBarTimestamp || null,
       };
 
       if (previousState.lastBarTimestamp && previousState.lastBarTimestamp === latestBar.timestamp) {
         activity.push({ at: new Date().toISOString(), symbol, type: 'deferred', detail: 'Latest bar unchanged since last scan, skipping re-evaluation.' });
         continue;
+      }
+
+      const cooldownBars = Number(automationSettings.cooldownBars || 0);
+      const lastSignalTs = previousState.lastSignalBarTimestamp;
+      if (cooldownBars > 0 && lastSignalTs && Array.isArray(bars)) {
+        const lastIndex = bars.findIndex((bar) => bar.timestamp === lastSignalTs);
+        if (lastIndex >= 0) {
+          const barsSince = (bars.length - 1) - lastIndex;
+          if (barsSince >= 0 && barsSince < cooldownBars) {
+            activity.push({ at: new Date().toISOString(), symbol, type: 'deferred', detail: `Cooldown active (${barsSince}/${cooldownBars} bars since last signal).` });
+            continue;
+          }
+        }
       }
 
       const result = evaluateLiquiditySweep({ symbol, bars, settings: automationSettings });
@@ -485,6 +500,7 @@ async function runAutomationCycle({ storage, createAlpacaClient, logger = () => 
       }
 
       candidates.push(candidate);
+      status.symbolStates[symbol].lastSignalBarTimestamp = result.confirmationBar?.timestamp || result.triggerBar?.timestamp || latestBar.timestamp || null;
     }
 
     const latestPersistedStatus = normalizeAutomationStatus(await storage.readAutomationStatus());
