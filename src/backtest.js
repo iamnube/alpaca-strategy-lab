@@ -216,8 +216,15 @@ async function main() {
   settings.stopBufferPercent = args.stopBufferPercent ? Number(args.stopBufferPercent) : 0.1
   settings.takeProfitBufferPercent = args.takeProfitBufferPercent ? Number(args.takeProfitBufferPercent) : 0
 
+  // Optional: drop known-bad symbols (comma-separated).
+  const excludeSymbols = new Set(String(args.excludeSymbols || '').split(',').map((s) => s.trim().toUpperCase()).filter(Boolean))
+
   const allTrades = []
   for (const symbol of symbols) {
+    if (excludeSymbols.has(symbol)) {
+      console.log(`${symbol}: excluded by --excludeSymbols`)
+      continue
+    }
     const bars = await loadBars({ dataDir, symbol })
     const scoped = sliceByDate(bars, start, end)
     const trades = backtestSymbol({ symbol, bars: scoped, settings, lookaheadBars, fillModel })
