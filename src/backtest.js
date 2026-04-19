@@ -49,6 +49,19 @@ function outcomeForCandidate({ side, entryPrice: _entryPrice, stopPrice, targetP
   return { outcome: 'open', at: null }
 }
 
+function outcomeUsingCloseOnly({ side, stopPrice, targetPrice, futureBars }) {
+  for (const bar of futureBars) {
+    if (side === 'buy') {
+      if (bar.close <= stopPrice) return { outcome: 'stop', at: bar.timestamp }
+      if (bar.close >= targetPrice) return { outcome: 'target', at: bar.timestamp }
+    } else {
+      if (bar.close >= stopPrice) return { outcome: 'stop', at: bar.timestamp }
+      if (bar.close <= targetPrice) return { outcome: 'target', at: bar.timestamp }
+    }
+  }
+  return { outcome: 'open', at: null }
+}
+
 function rMultiple({ side, entryPrice, stopPrice, exitPrice }) {
   const risk = side === 'buy' ? entryPrice - stopPrice : stopPrice - entryPrice
   if (!(risk > 0)) return null
@@ -87,7 +100,7 @@ function sliceByDate(bars, start, end) {
   })
 }
 
-function backtestSymbol({ symbol, bars, settings, lookaheadBars = 12 }) {
+function backtestSymbol({ symbol, bars, settings, lookaheadBars = 12, fillModel = 'touch' }) {
   const results = []
   const minWindow = Math.max(6, settings.lookbackBars)
 
@@ -101,20 +114,27 @@ function backtestSymbol({ symbol, bars, settings, lookaheadBars = 12 }) {
     if (results.length && results[results.length - 1].confirmationTs === confirmationTs) continue
 
     const future = bars.slice(i + 1, i + 1 + lookaheadBars)
-    const outcome = outcomeForCandidate({
-      side: evalResult.side,
-      entryPrice: evalResult.entryPrice,
-      stopPrice: evalResult.stopPrice,
-      targetPrice: evalResult.targetPrice,
-      futureBars: future,
-    })
+    const outcome = fillModel === 'close'
+      ? outcomeUsingCloseOnly({
+        side: evalResult.side,
+        stopPrice: evalResult.stopPrice,
+        targetPrice: evalResult.targetPrice,
+        futureBars: future,
+      })
+      : outcomeForCandidate({
+        side: evalResult.side,
+        entryPrice: evalResult.entryPrice,
+        stopPrice: evalResult.stopPrice,
+        targetPrice: evalResult.targetPrice,
+        futureBars: future,
+      })
 
     let exitPrice = null
     if (outcome.outcome === 'stop') exitPrice = evalResult.stopPrice
     if (outcome.outcome === 'target') exitPrice = evalResult.targetPrice
     const r = exitPrice != null ? rMultiple({ side: evalResult.side, entryPrice: evalResult.entryPrice, stopPrice: evalResult.stopPrice, exitPrice }) : null
 
-    results.push({
+      results.push({
       symbol,
       side: evalResult.side,
       confirmationTs,
@@ -122,6 +142,7 @@ function backtestSymbol({ symbol, bars, settings, lookaheadBars = 12 }) {
       stopPrice: evalResult.stopPrice,
       targetPrice: evalResult.targetPrice,
       lookaheadBars,
+      fillModel,
       outcome: outcome.outcome,
       outcomeAt: outcome.at,
       rMultiple: r != null ? round(r, 3) : null,
@@ -170,6 +191,11 @@ async function main() {
   const start = toDate(args.from)
   const end = toDate(args.to)
   const lookaheadBars = args.lookaheadBars ? Number(args.lookaheadBars) : 12
+  const fillModel = String(args.fillModel || 'touch')
+  if (!['touch', 'close'].includes(fillModel)) {
+    console.error("Unsupported --fillModel. Use 'touch' or 'close'.")
+    process.exit(2)
+  }
 
   if (!symbols.length) {
     console.error('Missing --symbols. Example: --symbols AAPL,MSFT,NVDA')
@@ -177,23 +203,24 @@ async function main() {
   }
 
   const settings = normalizeAutomationSettings({})
-  // Keep defaults but ensure the sweep thresholds are aligned with current strategy.
-  settings.minSweepPercent = 0.03
-  settings.etfMinSweepPercent = 0.02
-  settings.timeframe = '15Min'
-  settings.lookbackBars = 24
-  settings.signalWindowBars = 3
-  settings.minBodyToRangeRatio = 0.18
-  settings.confirmationBodyToRangeRatio = 0.15
-  settings.rewardToRisk = 1.8
-  settings.stopBufferPercent = 0.1
-  settings.takeProfitBufferPercent = 0
+
+  // Override any defaults with backtest CLI parameters (falls back to current strategy defaults).
+  settings.minSweepPercent = args.minSweepPercent ? Number(args.minSweepPercent) : 0.03
+  settings.etfMinSweepPercent = args.etfMinSweepPercent ? Number(args.etfMinSweepPercent) : 0.02
+  settings.timeframe = String(args.timeframe || '15Min')
+  settings.lookbackBars = args.lookbackBars ? Number(args.lookbackBars) : 24
+  settings.signalWindowBars = args.signalWindowBars ? Number(args.signalWindowBars) : 3
+  settings.minBodyToRangeRatio = args.minBodyToRangeRatio ? Number(args.minBodyToRangeRatio) : 0.18
+  settings.confirmationBodyToRangeRatio = args.confirmationBodyToRangeRatio ? Number(args.confirmationBodyToRangeRatio) : 0.15
+  settings.rewardToRisk = args.rewardToRisk ? Number(args.rewardToRisk) : 1.8
+  settings.stopBufferPercent = args.stopBufferPercent ? Number(args.stopBufferPercent) : 0.1
+  settings.takeProfitBufferPercent = args.takeProfitBufferPercent ? Number(args.takeProfitBufferPercent) : 0
 
   const allTrades = []
   for (const symbol of symbols) {
     const bars = await loadBars({ dataDir, symbol })
     const scoped = sliceByDate(bars, start, end)
-    const trades = backtestSymbol({ symbol, bars: scoped, settings, lookaheadBars })
+    const trades = backtestSymbol({ symbol, bars: scoped, settings, lookaheadBars, fillModel })
     allTrades.push(...trades)
     console.log(`${symbol}: bars=${scoped.length} trades=${trades.length} (etf=${isEtfSymbol(symbol)})`)
   }
@@ -215,4 +242,3 @@ main().catch((err) => {
   console.error(err)
   process.exit(1)
 })
-

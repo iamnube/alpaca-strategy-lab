@@ -4,5 +4,6 @@ node_modules/
 .service/
 data/*.json
 !data/.gitkeep
+backtest-data/
 .DS_Store
 npm-debug.log*
