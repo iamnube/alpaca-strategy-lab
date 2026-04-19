@@ -1,6 +1,8 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { evaluateLiquiditySweep, normalizeAutomationSettings, isEtfSymbol } from './automation.js'
+import { normalizeAutomationSettings } from './automation.js'
+import { isEtfSymbol } from './strategy-utils.js'
+import { getSignalFn } from './strategies.js'
 
 function parseArgs(argv) {
   const out = {}
@@ -100,13 +102,13 @@ function sliceByDate(bars, start, end) {
   })
 }
 
-function backtestSymbol({ symbol, bars, settings, lookaheadBars = 12, fillModel = 'touch' }) {
+function backtestSymbol({ symbol, bars, settings, lookaheadBars = 12, fillModel = 'touch', signalFn }) {
   const results = []
   const minWindow = Math.max(6, settings.lookbackBars)
 
   for (let i = minWindow; i < bars.length; i += 1) {
     const windowBars = bars.slice(0, i + 1)
-    const evalResult = evaluateLiquiditySweep({ symbol, bars: windowBars, settings })
+    const evalResult = signalFn({ symbol, bars: windowBars, settings })
     if (evalResult?.status !== 'candidate') continue
 
     const confirmationTs = evalResult.confirmationBar?.timestamp
@@ -192,8 +194,16 @@ async function main() {
   const end = toDate(args.to)
   const lookaheadBars = args.lookaheadBars ? Number(args.lookaheadBars) : 12
   const fillModel = String(args.fillModel || 'touch')
+  const strategy = String(args.strategy || 'sweep_reclaim')
   if (!['touch', 'close'].includes(fillModel)) {
     console.error("Unsupported --fillModel. Use 'touch' or 'close'.")
+    process.exit(2)
+  }
+  let signalFn
+  try {
+    signalFn = getSignalFn(strategy)
+  } catch (err) {
+    console.error(err instanceof Error ? err.message : String(err))
     process.exit(2)
   }
 
@@ -229,7 +239,7 @@ async function main() {
     }
     const bars = await loadBars({ dataDir, symbol })
     const scoped = sliceByDate(bars, start, end)
-    const trades = backtestSymbol({ symbol, bars: scoped, settings, lookaheadBars, fillModel })
+    const trades = backtestSymbol({ symbol, bars: scoped, settings, lookaheadBars, fillModel, signalFn })
     allTrades.push(...trades)
     console.log(`${symbol}: bars=${scoped.length} trades=${trades.length} (etf=${isEtfSymbol(symbol)})`)
   }
@@ -237,7 +247,7 @@ async function main() {
   const summary = summarize(allTrades)
   const outPath = path.join('data', 'backtest-results.json')
   await fs.mkdir(path.dirname(outPath), { recursive: true })
-  await fs.writeFile(outPath, JSON.stringify({ generatedAt: new Date().toISOString(), args, summary, trades: allTrades }, null, 2))
+  await fs.writeFile(outPath, JSON.stringify({ generatedAt: new Date().toISOString(), args: { ...args, strategy, fillModel }, summary, trades: allTrades }, null, 2))
 
   console.log('---')
   console.log(`Trades: ${summary.totals.trades} (closed=${summary.totals.closed})`) 
