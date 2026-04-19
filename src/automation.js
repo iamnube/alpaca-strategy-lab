@@ -562,6 +562,7 @@ export {
   automationStatusDefaults,
   createAutomationEngine,
   evaluateLiquiditySweep,
+  isEtfSymbol,
   normalizeAutomationSettings,
   normalizeAutomationStatus,
   runAutomationCycle,
