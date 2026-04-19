@@ -11,6 +11,7 @@ const automationDefaults = {
   etfMinSweepPercent: 0.02,
   minBodyToRangeRatio: 0.2,
   confirmationBodyToRangeRatio: 0.15,
+  reclaimAtrMultiplier: 0,
   rewardToRisk: 1.8,
   maxOpenPositions: 3,
   maxConcurrentOrdersPerSymbol: 1,
@@ -154,6 +155,25 @@ function getBarBodyRatio(bar) {
   return Math.abs(bar.close - bar.open) / range;
 }
 
+function averageTrueRange(bars, period = 14) {
+  if (!Array.isArray(bars) || bars.length < 2) return null;
+  const p = Math.max(2, Math.min(period, bars.length - 1));
+  const slice = bars.slice(-1 - p);
+  const trs = [];
+  for (let i = 1; i < slice.length; i += 1) {
+    const prev = slice[i - 1];
+    const cur = slice[i];
+    const tr = Math.max(
+      cur.high - cur.low,
+      Math.abs(cur.high - prev.close),
+      Math.abs(cur.low - prev.close),
+    );
+    trs.push(tr);
+  }
+  const sum = trs.reduce((acc, v) => acc + v, 0);
+  return sum / trs.length;
+}
+
 function formatRatio(value) {
   return Number.isFinite(value) ? value.toFixed(3) : 'n/a';
 }
@@ -211,6 +231,7 @@ function evaluateLiquiditySweep({ symbol, bars, settings }) {
   }
 
   const recent = bars.slice(-settings.lookbackBars);
+  const atr = averageTrueRange(recent, 14);
   const signalWindowBars = Math.max(1, Math.min(settings.signalWindowBars || 1, recent.length - 1));
   const startIndex = Math.max(5, recent.length - signalWindowBars);
   const minSweepPercent = isEtfSymbol(symbol) ? (settings.etfMinSweepPercent || settings.minSweepPercent) : settings.minSweepPercent;
@@ -233,8 +254,13 @@ function evaluateLiquiditySweep({ symbol, bars, settings }) {
     const bullishConfirmationBodyRatio = bullishConfirmation ? getBarBodyRatio(bullishConfirmation) : null;
     const bearishConfirmationBodyRatio = bearishConfirmation ? getBarBodyRatio(bearishConfirmation) : null;
 
+    const reclaimMult = Number(settings.reclaimAtrMultiplier || 0);
+    const reclaimDistance = reclaimMult > 0 && atr ? atr * reclaimMult : 0;
+
     if (buySweepDistance >= minSweepDistance) {
-      if (bullishConfirmation && (triggerBar.close > swingLow || triggerBodyRatio >= settings.minBodyToRangeRatio || bullishConfirmationBodyRatio >= settings.minBodyToRangeRatio)) {
+      const reclaimOk = !reclaimDistance || (bullishConfirmation && bullishConfirmation.close >= (swingLow + reclaimDistance));
+
+      if (bullishConfirmation && reclaimOk && (triggerBar.close > swingLow || triggerBodyRatio >= settings.minBodyToRangeRatio || bullishConfirmationBodyRatio >= settings.minBodyToRangeRatio)) {
         return classifySweepCandidate({
           symbol,
           direction: 'buy',
@@ -261,7 +287,9 @@ function evaluateLiquiditySweep({ symbol, bars, settings }) {
     }
 
     if (sellSweepDistance >= minSweepDistance) {
-      if (bearishConfirmation && (triggerBar.close < swingHigh || triggerBodyRatio >= settings.minBodyToRangeRatio || bearishConfirmationBodyRatio >= settings.minBodyToRangeRatio)) {
+      const reclaimOk = !reclaimDistance || (bearishConfirmation && bearishConfirmation.close <= (swingHigh - reclaimDistance));
+
+      if (bearishConfirmation && reclaimOk && (triggerBar.close < swingHigh || triggerBodyRatio >= settings.minBodyToRangeRatio || bearishConfirmationBodyRatio >= settings.minBodyToRangeRatio)) {
         return classifySweepCandidate({
           symbol,
           direction: 'sell',
@@ -317,6 +345,7 @@ function normalizeAutomationSettings(settings = {}) {
     etfMinSweepPercent: Math.max(0.01, Number(settings.etfMinSweepPercent || automationDefaults.etfMinSweepPercent)),
     minBodyToRangeRatio: Math.min(1, Math.max(0.05, Number(settings.minBodyToRangeRatio || automationDefaults.minBodyToRangeRatio))),
     confirmationBodyToRangeRatio: Math.min(1, Math.max(0.05, Number(settings.confirmationBodyToRangeRatio || automationDefaults.confirmationBodyToRangeRatio))),
+    reclaimAtrMultiplier: Math.max(0, Number(settings.reclaimAtrMultiplier || automationDefaults.reclaimAtrMultiplier)),
     rewardToRisk: Math.max(1, Number(settings.rewardToRisk || automationDefaults.rewardToRisk)),
     maxOpenPositions: Math.max(1, Number(settings.maxOpenPositions || automationDefaults.maxOpenPositions)),
     maxConcurrentOrdersPerSymbol: Math.max(1, Number(settings.maxConcurrentOrdersPerSymbol || automationDefaults.maxConcurrentOrdersPerSymbol)),
@@ -327,6 +356,7 @@ function normalizeAutomationSettings(settings = {}) {
     takeProfitBufferPercent: Math.max(0, Number(settings.takeProfitBufferPercent || automationDefaults.takeProfitBufferPercent)),
     minimumPrice: Math.max(0.01, Number(settings.minimumPrice || automationDefaults.minimumPrice)),
     maximumPrice: Math.max(1, Number(settings.maximumPrice || automationDefaults.maximumPrice)),
+    cooldownBars: Math.max(0, Number(settings.cooldownBars || automationDefaults.cooldownBars)),
   };
 }
 

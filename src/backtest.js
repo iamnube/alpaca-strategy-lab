@@ -215,6 +215,8 @@ async function main() {
   settings.rewardToRisk = args.rewardToRisk ? Number(args.rewardToRisk) : 1.8
   settings.stopBufferPercent = args.stopBufferPercent ? Number(args.stopBufferPercent) : 0.1
   settings.takeProfitBufferPercent = args.takeProfitBufferPercent ? Number(args.takeProfitBufferPercent) : 0
+  settings.reclaimAtrMultiplier = args.reclaimAtrMultiplier ? Number(args.reclaimAtrMultiplier) : 0
+  settings.cooldownBars = args.cooldownBars ? Number(args.cooldownBars) : 0
 
   // Optional: drop known-bad symbols (comma-separated).
   const excludeSymbols = new Set(String(args.excludeSymbols || '').split(',').map((s) => s.trim().toUpperCase()).filter(Boolean))
