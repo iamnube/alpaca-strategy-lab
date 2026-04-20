@@ -16,6 +16,8 @@ const automationDefaults = {
   maxOpenPositions: 3,
   maxConcurrentOrdersPerSymbol: 1,
   cooldownBars: 0,
+  candidateMaxAgeHours: 12,
+  closeHourAvoidMinutes: 60,
   watchlistScope: 'watchlist',
   maxWatchlistSymbols: 30,
   symbolsPerCycle: 8,
@@ -357,7 +359,28 @@ function normalizeAutomationSettings(settings = {}) {
     minimumPrice: Math.max(0.01, Number(settings.minimumPrice || automationDefaults.minimumPrice)),
     maximumPrice: Math.max(1, Number(settings.maximumPrice || automationDefaults.maximumPrice)),
     cooldownBars: Math.max(0, Number(settings.cooldownBars || automationDefaults.cooldownBars)),
+    candidateMaxAgeHours: Math.max(1, Number(settings.candidateMaxAgeHours || automationDefaults.candidateMaxAgeHours)),
+    closeHourAvoidMinutes: Math.max(0, Number(settings.closeHourAvoidMinutes ?? automationDefaults.closeHourAvoidMinutes)),
   };
+}
+
+function isWithinCloseAvoidWindow(now = new Date(), avoidMinutes = 60) {
+  if (!avoidMinutes) return false;
+  // Use US equities close (4:00 PM ET). Host timezone is America/New_York.
+  const close = new Date(now);
+  close.setHours(16, 0, 0, 0);
+  const msToClose = close.getTime() - now.getTime();
+  return msToClose >= 0 && msToClose <= avoidMinutes * 60 * 1000;
+}
+
+function pruneStaleCandidates(candidates, settings) {
+  const maxAgeMs = Math.max(1, settings.candidateMaxAgeHours) * 60 * 60 * 1000;
+  const now = Date.now();
+  return (candidates || []).filter((candidate) => {
+    const createdAt = candidate?.createdAt ? new Date(candidate.createdAt).getTime() : 0;
+    if (!createdAt) return true;
+    return now - createdAt <= maxAgeMs;
+  });
 }
 
 function normalizeAutomationStatus(status = {}) {
@@ -389,6 +412,13 @@ async function runAutomationCycle({ storage, createAlpacaClient, logger = () => 
   const settings = await storage.readSettings();
   const automationSettings = normalizeAutomationSettings(settings.automation);
   let status = normalizeAutomationStatus(await storage.readAutomationStatus());
+
+  // Prune stale candidates up front so the UI doesn't accumulate outdated setups.
+  const prunedCandidates = pruneStaleCandidates(status.candidates, automationSettings);
+  if (prunedCandidates.length !== (status.candidates || []).length) {
+    status.candidates = prunedCandidates;
+  }
+
   status.lastRunStartedAt = new Date().toISOString();
   status.lastHeartbeatAt = status.lastRunStartedAt;
   await writeAutomationStatus(storage, status);
@@ -410,6 +440,17 @@ async function runAutomationCycle({ storage, createAlpacaClient, logger = () => 
     status.runCount += 1;
     await writeAutomationStatus(storage, status);
     return { ok: false, settings: automationSettings, status };
+  }
+
+  if (isWithinCloseAvoidWindow(new Date(), automationSettings.closeHourAvoidMinutes)) {
+    status.lastRunAt = new Date().toISOString();
+    status.lastError = null;
+    status.lastSummary = `Skipped scan: within ${automationSettings.closeHourAvoidMinutes} minute(s) of market close.`;
+    status.runCount += 1;
+    status = pushActivity(status, { at: new Date().toISOString(), symbol: 'SYSTEM', type: 'skipped', detail: status.lastSummary });
+    await writeAutomationStatus(storage, status);
+    logger(status.lastSummary);
+    return { ok: true, skipped: true, settings: automationSettings, status };
   }
 
   try {
@@ -508,6 +549,8 @@ async function runAutomationCycle({ storage, createAlpacaClient, logger = () => 
         createdAt: new Date().toISOString(),
         status: automationSettings.autoSubmit ? 'submitted' : 'candidate',
         autoSubmitted: automationSettings.autoSubmit,
+        rewardToRisk: automationSettings.rewardToRisk,
+        fillModel: 'close',
         ...result,
       };
 
