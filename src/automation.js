@@ -562,12 +562,30 @@ async function runAutomationCycle({ storage, createAlpacaClient, logger = () => 
     logger(status.lastSummary);
     return { ok: true, settings: automationSettings, status, candidates, positions, orders };
   } catch (error) {
+    const errorMessage = (() => {
+      try {
+        if (error && typeof error === 'object') {
+          const maybeMessage = typeof error.message === 'string' && error.message.trim() ? error.message.trim() : null;
+          const maybeCode = typeof error.code === 'string' && error.code.trim() ? error.code.trim() : null;
+          const maybeStatus = error.response && typeof error.response.status !== 'undefined' ? String(error.response.status) : null;
+          if (maybeMessage && maybeCode) return `${maybeCode}: ${maybeMessage}`;
+          if (maybeMessage) return maybeMessage;
+          if (maybeCode) return maybeCode;
+          if (maybeStatus) return `HTTP ${maybeStatus}`;
+          return JSON.stringify(error);
+        }
+        return String(error);
+      } catch {
+        return 'Unknown error'
+      }
+    })();
+
     status = normalizeAutomationStatus(await storage.readAutomationStatus());
     status.lastRunAt = new Date().toISOString();
-    status.lastError = error.message;
+    status.lastError = errorMessage;
     status.lastSummary = 'Automation run failed.';
     status.runCount += 1;
-    status = pushActivity(status, { at: new Date().toISOString(), symbol: 'SYSTEM', type: 'error', detail: error.message });
+    status = pushActivity(status, { at: new Date().toISOString(), symbol: 'SYSTEM', type: 'error', detail: errorMessage });
     await writeAutomationStatus(storage, status);
     return { ok: false, settings: automationSettings, status, error };
   }
