@@ -166,6 +166,33 @@ function summarize(trades) {
   const winRate = closed.length ? wins.length / closed.length : 0
   const avgR = closed.length ? closed.reduce((s, t) => s + (t.rMultiple ?? 0), 0) / closed.length : 0
 
+  const risk = (() => {
+    let equity = 0
+    let peak = 0
+    let maxDrawdown = 0
+    let lossStreak = 0
+    let maxLossStreak = 0
+
+    for (const t of closed) {
+      equity += Number(t.rMultiple ?? 0)
+      if (equity > peak) peak = equity
+      const dd = peak - equity
+      if (dd > maxDrawdown) maxDrawdown = dd
+
+      if (t.outcome === 'stop') {
+        lossStreak += 1
+        if (lossStreak > maxLossStreak) maxLossStreak = lossStreak
+      } else {
+        lossStreak = 0
+      }
+    }
+
+    return {
+      maxDrawdownR: round(maxDrawdown, 2),
+      maxLossStreak,
+    }
+  })()
+
   const bySymbol = {}
   for (const t of trades) {
     bySymbol[t.symbol] = bySymbol[t.symbol] || { total: 0, target: 0, stop: 0, open: 0, ambiguous: 0 }
@@ -181,6 +208,7 @@ function summarize(trades) {
       avgR: round(avgR, 3),
       outcomes: counts,
     },
+    risk,
     bySymbol,
   }
 }
