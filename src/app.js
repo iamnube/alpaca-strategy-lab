@@ -608,6 +608,21 @@ function createApp({ storage = createStorage(), createAlpacaClient = createDefau
     }
   });
 
+  app.get('/api/orders', async (req, res) => {
+    const alpaca = createAlpacaClient();
+    if (!alpaca) return res.status(400).json({ ok: false, error: 'Missing Alpaca paper credentials' });
+
+    const limit = Math.max(1, Math.min(200, Number(req.query.limit || 50)));
+    const status = String(req.query.status || 'all');
+
+    try {
+      const orders = await alpaca.getOrders({ status, direction: 'desc' });
+      return res.json({ ok: true, count: orders.length, orders: orders.slice(0, limit) });
+    } catch (error) {
+      return res.status(500).json({ ok: false, error: error?.message || String(error) });
+    }
+  });
+
   if (startAutomation) {
     storage.ensureDataFiles().then(() => automationEngine.start()).catch((error) => console.error('[automation] failed to start', error));
   }
