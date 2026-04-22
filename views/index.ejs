@@ -108,6 +108,7 @@
         <button type="submit">Save automation settings</button>
       </form>
       <p class="mini-note">Automation stays paper-only. It now checks the last few bars for sweep then reclaim/rejection confirmation, with slightly looser ETF thresholds and review-first defaults.</p>
+      <div class="mini-note">One trade can create multiple visible Alpaca orders when brackets are used: an entry plus linked take-profit and stop-loss legs. So a burst of buy/sell rows does not always mean the strategy opened that many separate trades.</div>
       <div class="stats compact-stats top-gap">
         <div><span>Last summary</span><strong><%= automationStatus.lastSummary || '—' %></strong></div>
         <div><span>Runs</span><strong><%= automationStatus.runCount || 0 %></strong></div>
@@ -254,6 +255,7 @@
 
     <section class="card wide">
       <h2>Open paper orders</h2>
+      <p class="mini-note">These are order rows, not unique trade ideas. Bracket entries often fan out into linked exit legs, and replacements/cancels can add extra rows while still belonging to one setup.</p>
       <div class="table-wrap">
         <table>
           <thead><tr><th>Symbol</th><th>Side</th><th>Qty</th><th>Type</th><th>Status</th><th>Submitted</th></tr></thead>
@@ -269,6 +271,30 @@
               </tr>
             <% }) } else { %>
               <tr><td colspan="6" class="muted">No open paper orders.</td></tr>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card wide">
+      <h2>Order diagnostics</h2>
+      <p class="mini-note">Grouped by symbol so you can quickly see whether a symbol has a fresh entry, bracket exits, or a likely stale resting entry order.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Symbol</th><th>Total</th><th>Entries</th><th>Take profits</th><th>Stops</th><th>Likely stale?</th></tr></thead>
+          <tbody>
+            <% if (orderDiagnostics.length) { orderDiagnostics.forEach((row) => { %>
+              <tr>
+                <td><%= row.symbol %></td>
+                <td><%= row.count %></td>
+                <td><%= row.entries %></td>
+                <td><%= row.takeProfits %></td>
+                <td><%= row.stopLosses %></td>
+                <td><%= row.likelyStale ? 'yes' : 'no' %></td>
+              </tr>
+            <% }) } else { %>
+              <tr><td colspan="6" class="muted">No open orders to diagnose.</td></tr>
             <% } %>
           </tbody>
         </table>

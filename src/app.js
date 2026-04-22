@@ -350,6 +350,47 @@ function buildWorkflow({ credsConfigured, watchlist, journal, account, automatio
   ];
 }
 
+function summarizeOpenOrders(orders) {
+  const grouped = new Map();
+  for (const order of orders || []) {
+    const symbol = String(order.symbol || 'UNKNOWN');
+    if (!grouped.has(symbol)) grouped.set(symbol, []);
+    const intent = String(order.position_intent || '').toLowerCase();
+    const label = intent.includes('open')
+      ? 'entry'
+      : intent.includes('close')
+        ? (String(order.type || order.order_type || '').toLowerCase() === 'stop' ? 'stop_loss' : 'take_profit')
+        : 'other';
+    grouped.get(symbol).push({
+      id: order.id,
+      side: order.side,
+      type: order.type || order.order_type,
+      status: order.status,
+      orderClass: order.order_class,
+      intent: order.position_intent || 'unknown',
+      label,
+      limitPrice: order.limit_price,
+      stopPrice: order.stop_price,
+      submittedAt: order.submitted_at,
+    });
+  }
+
+  return Array.from(grouped.entries()).map(([symbol, symbolOrders]) => {
+    const entries = symbolOrders.filter((o) => o.label === 'entry').length;
+    const takeProfits = symbolOrders.filter((o) => o.label === 'take_profit').length;
+    const stopLosses = symbolOrders.filter((o) => o.label === 'stop_loss').length;
+    return {
+      symbol,
+      count: symbolOrders.length,
+      entries,
+      takeProfits,
+      stopLosses,
+      likelyStale: entries > 0 && symbolOrders.every((o) => o.status === 'new'),
+      orders: symbolOrders,
+    };
+  }).sort((a, b) => b.count - a.count || a.symbol.localeCompare(b.symbol));
+}
+
 function maybeCreateAutomationJournalEntries(existingJournal, candidates) {
   const seenIds = new Set(existingJournal.filter((entry) => entry.automationCandidateId).map((entry) => entry.automationCandidateId));
   const additions = candidates
@@ -399,6 +440,7 @@ async function getDashboardData({ storage, createAlpacaClient, plannerInput, pla
     automationSettings: settings.automation,
     automationStatus,
     automationCandidates: automationStatus.candidates || [],
+    orderDiagnostics: [],
     plannerInput,
     plannerResult,
     workflow: [],
@@ -427,6 +469,7 @@ async function getDashboardData({ storage, createAlpacaClient, plannerInput, pla
     state.account = account;
     state.positions = positions;
     state.orders = orders;
+    state.orderDiagnostics = summarizeOpenOrders(orders);
     state.watchQuotes = state.watchlist.map((symbol) => {
       const quote = latestQuotes?.get?.(symbol);
       const trade = latestTrades?.get?.(symbol);
