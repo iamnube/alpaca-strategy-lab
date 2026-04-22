@@ -115,6 +115,9 @@ function signalBreakoutAcceptance({ symbol, bars, settings }) {
 
   const recent = bars.slice(-settings.lookbackBars)
   const atr = averageTrueRange(recent, 14)
+  const vwaps = cumulativeVwap(recent)
+  const closes = recent.map((b) => b.close)
+  const sma20 = simpleMovingAverage(closes, 20)
   const signalWindowBars = Math.max(1, Math.min(settings.signalWindowBars || 1, recent.length - 1))
   const startIndex = Math.max(5, recent.length - signalWindowBars)
   const minSweepPercent = isEtfSymbol(symbol) ? (settings.etfMinSweepPercent || settings.minSweepPercent) : settings.minSweepPercent
@@ -132,12 +135,15 @@ function signalBreakoutAcceptance({ symbol, bars, settings }) {
     const buyBreakDistance = triggerBar.high - swingHigh
     const sellBreakDistance = swingLow - triggerBar.low
     const confirmationBars = recent.slice(triggerIndex, Math.min(recent.length, triggerIndex + 3))
+    const confirmationIndex = Math.min(recent.length - 1, triggerIndex + 1)
+    const confirmVwap = vwaps[confirmationIndex]
 
     // Continuation long: sweep above swingHigh, then acceptance close above swingHigh + buffer
     const longConfirm = confirmationBars.find((bar) => bar.close > swingHigh && getBarBodyRatio(bar) >= settings.confirmationBodyToRangeRatio)
     if (buyBreakDistance >= minSweepDistance && longConfirm) {
       const acceptOk = !acceptDistance || longConfirm.close >= (swingHigh + acceptDistance)
-      if (!acceptOk) continue
+      const trendOk = sma20 && longConfirm.close > confirmVwap && longConfirm.close > sma20
+      if (!acceptOk || !trendOk) continue
       const entryPrice = longConfirm.close
       const extreme = Math.min(...confirmationBars.map((bar) => bar.low))
       const { stopPrice, targetPrice } = computeStopsTargets({ side: 'buy', entryPrice, extremePrice: extreme, settings })
@@ -159,7 +165,8 @@ function signalBreakoutAcceptance({ symbol, bars, settings }) {
     const shortConfirm = confirmationBars.find((bar) => bar.close < swingLow && getBarBodyRatio(bar) >= settings.confirmationBodyToRangeRatio)
     if (sellBreakDistance >= minSweepDistance && shortConfirm) {
       const acceptOk = !acceptDistance || shortConfirm.close <= (swingLow - acceptDistance)
-      if (!acceptOk) continue
+      const trendOk = sma20 && shortConfirm.close < confirmVwap && shortConfirm.close < sma20
+      if (!acceptOk || !trendOk) continue
       const entryPrice = shortConfirm.close
       const extreme = Math.max(...confirmationBars.map((bar) => bar.high))
       const { stopPrice, targetPrice } = computeStopsTargets({ side: 'sell', entryPrice, extremePrice: extreme, settings })
