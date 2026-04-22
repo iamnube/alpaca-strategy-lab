@@ -77,6 +77,7 @@
           ? 'Auto-submit is currently ON. New qualifying automation signals can send paper bracket orders without manual review.'
           : 'Auto-submit is OFF. Automation can still scan and generate candidates, but it should not place new paper orders automatically.' %>
       </div>
+      <div class="mini-note" style="margin-bottom: 12px; color: <%= automationSettings.autoSubmit ? '#b91c1c' : '#475569' %>;"><strong>Safety gate:</strong> turning on auto-submit now requires typing <code>ENABLE PAPER AUTO SUBMIT</code> before saving.</div>
       <div class="inline-form compact-actions" style="margin-bottom: 12px; gap: 8px;">
         <form action="/orders/cancel-open" method="post">
           <button type="submit">Cancel all open paper orders</button>
@@ -90,6 +91,9 @@
           <label class="checkbox-row"><input type="checkbox" name="enabled" value="1" <%= automationSettings.enabled ? 'checked' : '' %> /> Enable automation</label>
           <label class="checkbox-row"><input type="checkbox" name="autoSubmit" value="1" <%= automationSettings.autoSubmit ? 'checked' : '' %> /> Auto-place paper bracket orders</label>
           <label>Timeframe<select name="timeframe"><% automationTimeframes.forEach((timeframe) => { %><option value="<%= timeframe %>" <%= automationSettings.timeframe === timeframe ? 'selected' : '' %>><%= timeframe %></option><% }) %></select></label>
+        </div>
+        <div class="three-col">
+          <label style="grid-column: span 2;">Type to confirm auto-submit<input type="text" name="autoSubmitConfirmText" placeholder="ENABLE PAPER AUTO SUBMIT" autocomplete="off" /></label>
         </div>
         <div class="three-col">
           <label>Poll every seconds<input type="number" name="pollIntervalSeconds" min="60" max="3600" value="<%= automationSettings.pollIntervalSeconds %>" /></label>

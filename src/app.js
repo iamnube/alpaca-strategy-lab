@@ -119,6 +119,7 @@ const plannerSchema = z.object({
 const automationSettingsSchema = z.object({
   enabled: z.string().optional(),
   autoSubmit: z.string().optional(),
+  autoSubmitConfirmText: z.string().optional(),
   rotateWatchlist: z.string().optional(),
   pollIntervalSeconds: z.coerce.number().min(60).max(3600),
   timeframe: z.enum(automationTimeframes),
@@ -588,6 +589,12 @@ function createApp({ storage = createStorage(), createAlpacaClient = createDefau
     await storage.ensureDataFiles();
     const parsed = automationSettingsSchema.safeParse(req.body);
     if (!parsed.success) return res.redirect(`/?error=${encodeURIComponent(parsed.error.issues[0].message)}`);
+
+    const wantsAutoSubmit = Boolean(req.body.autoSubmit);
+    const confirmText = String(req.body.autoSubmitConfirmText || '').trim();
+    if (wantsAutoSubmit && confirmText !== 'ENABLE PAPER AUTO SUBMIT') {
+      return res.redirect('/?error=Type ENABLE PAPER AUTO SUBMIT to enable auto-submit');
+    }
 
     const settings = await storage.readSettings();
     await storage.saveSettings({
