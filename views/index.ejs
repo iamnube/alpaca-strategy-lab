@@ -31,6 +31,9 @@
       <div><span>Auto status</span><strong><%= automationSettings.enabled ? (automationSettings.autoSubmit ? 'Enabled + submit' : 'Enabled') : 'Disabled' %></strong></div>
       <div><span>Last automation run</span><strong><%= automationStatus.lastRunAt ? new Date(automationStatus.lastRunAt).toLocaleTimeString() : '—' %></strong></div>
       <div><span>Expectancy</span><strong><%= journalSummary.expectancyR !== null ? journalSummary.expectancyR + 'R' : '—' %></strong></div>
+      <div><span>Open positions</span><strong><%= positions.length %></strong></div>
+      <div><span>Open orders</span><strong><%= orders.length %></strong></div>
+      <div><span>Legacy auto-submitted</span><strong><%= automationRisk.legacyAutoSubmittedCount %></strong></div>
     </section>
 
     <section class="card">
