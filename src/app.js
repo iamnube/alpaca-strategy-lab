@@ -682,6 +682,27 @@ function createApp({ storage = createStorage(), createAlpacaClient = createDefau
     }
   });
 
+  app.post('/positions/flatten', async (req, res) => {
+    const alpaca = createAlpacaClient();
+    if (!alpaca) return res.redirect('/?error=Missing Alpaca paper credentials');
+
+    try {
+      const positions = await alpaca.getPositions();
+      for (const position of positions) {
+        if (typeof alpaca.closePosition === 'function') await alpaca.closePosition(position.symbol);
+        else if (typeof alpaca.closeAllPositions === 'function') {
+          await alpaca.closeAllPositions();
+          break;
+        } else {
+          throw new Error('Alpaca client does not expose position-closing helpers');
+        }
+      }
+      return res.redirect(`/?success=${encodeURIComponent(`Requested flatten for ${positions.length} paper position(s)`)}`);
+    } catch (error) {
+      return res.redirect(`/?error=${encodeURIComponent(error.message)}`);
+    }
+  });
+
   app.get('/api/orders', async (req, res) => {
     const alpaca = createAlpacaClient();
     if (!alpaca) return res.status(400).json({ ok: false, error: 'Missing Alpaca paper credentials' });
