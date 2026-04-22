@@ -69,6 +69,9 @@
           <button type="submit">Run scan now</button>
         </form>
       </div>
+      <form action="/orders/cancel-open" method="post" class="inline-form compact-actions" style="margin-bottom: 12px;">
+        <button type="submit">Cancel all open paper orders</button>
+      </form>
       <form action="/automation/settings" method="post" class="stack-form">
         <div class="three-col">
           <label class="checkbox-row"><input type="checkbox" name="enabled" value="1" <%= automationSettings.enabled ? 'checked' : '' %> /> Enable automation</label>
@@ -115,6 +118,11 @@
         <div><span>Last error</span><strong><%= automationStatus.lastError || 'None' %></strong></div>
         <div><span>Watchlist scope</span><strong><%= watchlist.length %> symbols</strong></div>
       </div>
+      <% if (automationRisk.legacyAutoSubmittedCount > 0) { %>
+        <div class="mini-note" style="margin-top: 10px; color: #b45309;">
+          Warning: auto-submit is off now, but there are <strong><%= automationRisk.legacyAutoSubmittedCount %></strong> legacy auto-submitted journal entries from earlier runs across symbols like <strong><%= automationRisk.legacySymbols.join(', ') %></strong>.
+        </div>
+      <% } %>
     </section>
 
     <section class="card">

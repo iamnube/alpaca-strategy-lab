@@ -391,6 +391,16 @@ function summarizeOpenOrders(orders) {
   }).sort((a, b) => b.count - a.count || a.symbol.localeCompare(b.symbol));
 }
 
+function summarizeAutomationJournalRisk(journal, automationSettings) {
+  const autoSubmitted = (journal || []).filter((entry) => entry.status === 'auto-submitted');
+  const legacyAutoSubmitted = !automationSettings.autoSubmit ? autoSubmitted : [];
+  return {
+    autoSubmittedCount: autoSubmitted.length,
+    legacyAutoSubmittedCount: legacyAutoSubmitted.length,
+    legacySymbols: [...new Set(legacyAutoSubmitted.map((entry) => entry.symbol))].slice(0, 20),
+  };
+}
+
 function maybeCreateAutomationJournalEntries(existingJournal, candidates) {
   const seenIds = new Set(existingJournal.filter((entry) => entry.automationCandidateId).map((entry) => entry.automationCandidateId));
   const additions = candidates
@@ -441,6 +451,7 @@ async function getDashboardData({ storage, createAlpacaClient, plannerInput, pla
     automationStatus,
     automationCandidates: automationStatus.candidates || [],
     orderDiagnostics: [],
+    automationRisk: { autoSubmittedCount: 0, legacyAutoSubmittedCount: 0, legacySymbols: [] },
     plannerInput,
     plannerResult,
     workflow: [],
@@ -485,6 +496,7 @@ async function getDashboardData({ storage, createAlpacaClient, plannerInput, pla
     state.errors.push(error.message);
   }
 
+  state.automationRisk = summarizeAutomationJournalRisk(state.journal, state.automationSettings);
   state.workflow = buildWorkflow(state);
   return state;
 }
@@ -533,6 +545,7 @@ function createApp({ storage = createStorage(), createAlpacaClient = createDefau
     const data = await getDashboardData({ storage, createAlpacaClient, plannerInput, plannerResult });
     res.render('index', {
       ...data,
+      orderDiagnostics: data.orderDiagnostics || [],
       checklistItems,
       success: req.query.success,
       error: req.query.error || res.locals.plannerError,
@@ -646,6 +659,23 @@ function createApp({ storage = createStorage(), createAlpacaClient = createDefau
 
       await alpaca.createOrder(payload);
       return res.redirect('/?success=Paper order submitted');
+    } catch (error) {
+      return res.redirect(`/?error=${encodeURIComponent(error.message)}`);
+    }
+  });
+
+  app.post('/orders/cancel-open', async (req, res) => {
+    const alpaca = createAlpacaClient();
+    if (!alpaca) return res.redirect('/?error=Missing Alpaca paper credentials');
+
+    try {
+      const orders = await alpaca.getOrders({ status: 'open', direction: 'desc' });
+      for (const order of orders) {
+        if (typeof alpaca.cancelOrder === 'function') await alpaca.cancelOrder(order.id);
+        else if (typeof alpaca.cancelOrderById === 'function') await alpaca.cancelOrderById(order.id);
+        else throw new Error('Alpaca client does not expose order cancellation');
+      }
+      return res.redirect(`/?success=${encodeURIComponent(`Canceled ${orders.length} open paper order(s)`)}`);
     } catch (error) {
       return res.redirect(`/?error=${encodeURIComponent(error.message)}`);
     }
