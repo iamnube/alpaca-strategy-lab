@@ -32,5 +32,24 @@ function averageTrueRange(bars, period = 14) {
   return sum / trs.length
 }
 
-export { round, isEtfSymbol, getBarBodyRatio, averageTrueRange }
+function cumulativeVwap(bars) {
+  if (!Array.isArray(bars) || !bars.length) return []
+  let cumPV = 0
+  let cumVol = 0
+  return bars.map((bar) => {
+    const typical = (bar.high + bar.low + bar.close) / 3
+    const volume = Number(bar.volume || 0)
+    cumPV += typical * volume
+    cumVol += volume
+    return cumVol > 0 ? cumPV / cumVol : bar.close
+  })
+}
 
+function simpleMovingAverage(values, period) {
+  if (!Array.isArray(values) || values.length < period || period <= 0) return null
+  const slice = values.slice(-period)
+  const sum = slice.reduce((acc, v) => acc + v, 0)
+  return sum / slice.length
+}
+
+export { round, isEtfSymbol, getBarBodyRatio, averageTrueRange, cumulativeVwap, simpleMovingAverage }

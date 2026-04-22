@@ -1,4 +1,4 @@
-import { averageTrueRange, getBarBodyRatio, isEtfSymbol, round } from './strategy-utils.js'
+import { averageTrueRange, cumulativeVwap, getBarBodyRatio, isEtfSymbol, round, simpleMovingAverage } from './strategy-utils.js'
 
 function classifyBasicCandidate({ symbol, side, timeframe, triggerBar, confirmationBar, entryPrice, stopPrice, targetPrice, reason, metrics }) {
   return {
@@ -248,12 +248,76 @@ function signalORB({ symbol, bars, settings }) {
   return { status: 'blocked', symbol, reason: 'No ORB breakout on latest bar.' }
 }
 
+// Strategy D: VWAP pullback in trend direction
+function signalVwapPullback({ symbol, bars, settings }) {
+  if (!Array.isArray(bars) || bars.length < Math.max(20, settings.lookbackBars)) {
+    return { status: 'skipped', symbol, reason: 'Not enough bars yet.' }
+  }
+
+  const recent = bars.slice(-Math.max(settings.lookbackBars, 30))
+  const vwaps = cumulativeVwap(recent)
+  const closes = recent.map((b) => b.close)
+  const sma20 = simpleMovingAverage(closes, 20)
+  if (!sma20) return { status: 'skipped', symbol, reason: 'Not enough bars for SMA.' }
+
+  const last = recent[recent.length - 1]
+  const prev = recent[recent.length - 2]
+  const lastVwap = vwaps[vwaps.length - 1]
+  const prevVwap = vwaps[vwaps.length - 2]
+  const vwapRising = lastVwap > prevVwap
+  const vwapFalling = lastVwap < prevVwap
+
+  const bullishTrend = last.close > lastVwap && last.close > sma20 && vwapRising
+  const bearishTrend = last.close < lastVwap && last.close < sma20 && vwapFalling
+
+  const pullbackWindow = recent.slice(-4)
+  const touchedBelowVwap = pullbackWindow.some((b) => b.low <= lastVwap)
+  const touchedAboveVwap = pullbackWindow.some((b) => b.high >= lastVwap)
+  const bodyOk = getBarBodyRatio(last) >= settings.confirmationBodyToRangeRatio
+
+  if (bullishTrend && touchedBelowVwap && last.close > last.open && bodyOk) {
+    const extreme = Math.min(...pullbackWindow.map((b) => b.low))
+    const { stopPrice, targetPrice } = computeStopsTargets({ side: 'buy', entryPrice: last.close, extremePrice: extreme, settings })
+    return classifyBasicCandidate({
+      symbol,
+      side: 'buy',
+      timeframe: settings.timeframe,
+      triggerBar: prev,
+      confirmationBar: last,
+      entryPrice: last.close,
+      stopPrice,
+      targetPrice,
+      reason: `VWAP pullback buy reclaiming session VWAP ${round(lastVwap, 2)}`,
+      metrics: { strategy: 'vwap_pullback', vwap: round(lastVwap, 2), sma20: round(sma20, 2) },
+    })
+  }
+
+  if (bearishTrend && touchedAboveVwap && last.close < last.open && bodyOk) {
+    const extreme = Math.max(...pullbackWindow.map((b) => b.high))
+    const { stopPrice, targetPrice } = computeStopsTargets({ side: 'sell', entryPrice: last.close, extremePrice: extreme, settings })
+    return classifyBasicCandidate({
+      symbol,
+      side: 'sell',
+      timeframe: settings.timeframe,
+      triggerBar: prev,
+      confirmationBar: last,
+      entryPrice: last.close,
+      stopPrice,
+      targetPrice,
+      reason: `VWAP pullback sell rejecting session VWAP ${round(lastVwap, 2)}`,
+      metrics: { strategy: 'vwap_pullback', vwap: round(lastVwap, 2), sma20: round(sma20, 2) },
+    })
+  }
+
+  return { status: 'blocked', symbol, reason: 'No qualifying VWAP pullback.' }
+}
+
 function getSignalFn(strategyId) {
   if (strategyId === 'sweep_reclaim') return signalSweepReclaim
   if (strategyId === 'breakout_accept') return signalBreakoutAcceptance
   if (strategyId === 'orb') return signalORB
+  if (strategyId === 'vwap_pullback') return signalVwapPullback
   throw new Error(`Unknown strategy: ${strategyId}`)
 }
 
 export { getSignalFn }
-
