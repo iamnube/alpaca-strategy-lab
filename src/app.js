@@ -546,6 +546,7 @@ function createApp({ storage = createStorage(), createAlpacaClient = createDefau
     res.render('index', {
       ...data,
       orderDiagnostics: data.orderDiagnostics || [],
+      automationRisk: data.automationRisk || { autoSubmittedCount: 0, legacyAutoSubmittedCount: 0, legacySymbols: [] },
       checklistItems,
       success: req.query.success,
       error: req.query.error || res.locals.plannerError,

@@ -80,6 +80,16 @@ function createMockAlpaca() {
   };
 }
 
+function withMockedDateNow(isoString, fn) {
+  const realDateNow = Date.now;
+  Date.now = () => new Date(isoString).getTime();
+  return Promise.resolve()
+    .then(fn)
+    .finally(() => {
+      Date.now = realDateNow;
+    });
+}
+
 test('GET / renders with default watchlist and creates isolated data files', async () => {
   const storage = await createTempStorage();
   const app = createApp({ storage, createAlpacaClient: () => null, startAutomation: false });
@@ -450,84 +460,90 @@ test('POST /order supports bracket payloads', async () => {
 });
 
 test('runAutomationCycle can auto-submit a paper candidate and persist status', async () => {
-  const storage = await createTempStorage();
-  const mock = createMockAlpaca();
-  await storage.saveSettings({
-    watchlist: ['AAPL'],
-    automation: {
-      enabled: true,
-      autoSubmit: true,
-      pollIntervalSeconds: 300,
-      timeframe: '5Min',
-      lookbackBars: 6,
-      signalWindowBars: 2,
-      minSweepPercent: 0.05,
-      etfMinSweepPercent: 0.02,
-      minBodyToRangeRatio: 0.15,
-      confirmationBodyToRangeRatio: 0.15,
-      rewardToRisk: 2,
-      maxOpenPositions: 3,
-      maxConcurrentOrdersPerSymbol: 1,
-      maxWatchlistSymbols: 1,
-      symbolsPerCycle: 1,
-      rotateWatchlist: true,
-      riskPerTrade: 50,
-      stopBufferPercent: 0.1,
-      takeProfitBufferPercent: 0,
-      minimumPrice: 5,
-      maximumPrice: 1000,
-    },
+  await withMockedDateNow('2026-04-22T14:00:00Z', async () => {
+    const storage = await createTempStorage();
+    const mock = createMockAlpaca();
+    await storage.saveSettings({
+      watchlist: ['AAPL'],
+      automation: {
+        enabled: true,
+        autoSubmit: true,
+        pollIntervalSeconds: 300,
+        timeframe: '5Min',
+        lookbackBars: 6,
+        signalWindowBars: 2,
+        minSweepPercent: 0.05,
+        etfMinSweepPercent: 0.02,
+        minBodyToRangeRatio: 0.15,
+        confirmationBodyToRangeRatio: 0.15,
+        rewardToRisk: 2,
+        maxOpenPositions: 3,
+        maxConcurrentOrdersPerSymbol: 1,
+        maxWatchlistSymbols: 1,
+        symbolsPerCycle: 1,
+        rotateWatchlist: true,
+        riskPerTrade: 50,
+        stopBufferPercent: 0.1,
+        takeProfitBufferPercent: 0,
+        minimumPrice: 5,
+        maximumPrice: 1000,
+        closeHourAvoidMinutes: 0,
+      },
+    });
+
+    const result = await runAutomationCycle({ storage, createAlpacaClient: () => mock.client });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.candidates.length, 1);
+    assert.equal(mock.submittedOrders.length, 1);
+    const status = JSON.parse(await fs.readFile(storage.automationStatusPath, 'utf8'));
+    assert.match(status.lastSummary, /produced 1 submitted order/);
   });
-
-  const result = await runAutomationCycle({ storage, createAlpacaClient: () => mock.client });
-
-  assert.equal(result.ok, true);
-  assert.equal(result.candidates.length, 1);
-  assert.equal(mock.submittedOrders.length, 1);
-  const status = JSON.parse(await fs.readFile(storage.automationStatusPath, 'utf8'));
-  assert.match(status.lastSummary, /produced 1 submitted order/);
 });
 
 test('runAutomationCycle rotates watchlist chunks and skips unchanged bars on revisit', async () => {
-  const storage = await createTempStorage();
-  const mock = createMockAlpaca();
-  await storage.saveSettings({
-    watchlist: ['AAPL', 'MSFT', 'NVDA'],
-    automation: {
-      enabled: true,
-      autoSubmit: false,
-      pollIntervalSeconds: 600,
-      timeframe: '5Min',
-      lookbackBars: 6,
-      signalWindowBars: 2,
-      minSweepPercent: 0.04,
-      etfMinSweepPercent: 0.02,
-      minBodyToRangeRatio: 0.15,
-      confirmationBodyToRangeRatio: 0.15,
-      rewardToRisk: 1.8,
-      maxOpenPositions: 3,
-      maxConcurrentOrdersPerSymbol: 1,
-      maxWatchlistSymbols: 3,
-      symbolsPerCycle: 1,
-      rotateWatchlist: true,
-      riskPerTrade: 50,
-      stopBufferPercent: 0.1,
-      takeProfitBufferPercent: 0,
-      minimumPrice: 5,
-      maximumPrice: 1000,
-    },
+  await withMockedDateNow('2026-04-22T14:00:00Z', async () => {
+    const storage = await createTempStorage();
+    const mock = createMockAlpaca();
+    await storage.saveSettings({
+      watchlist: ['AAPL', 'MSFT', 'NVDA'],
+      automation: {
+        enabled: true,
+        autoSubmit: false,
+        pollIntervalSeconds: 600,
+        timeframe: '5Min',
+        lookbackBars: 6,
+        signalWindowBars: 2,
+        minSweepPercent: 0.04,
+        etfMinSweepPercent: 0.02,
+        minBodyToRangeRatio: 0.15,
+        confirmationBodyToRangeRatio: 0.15,
+        rewardToRisk: 1.8,
+        maxOpenPositions: 3,
+        maxConcurrentOrdersPerSymbol: 1,
+        maxWatchlistSymbols: 3,
+        symbolsPerCycle: 1,
+        rotateWatchlist: true,
+        riskPerTrade: 50,
+        stopBufferPercent: 0.1,
+        takeProfitBufferPercent: 0,
+        minimumPrice: 5,
+        maximumPrice: 1000,
+        closeHourAvoidMinutes: 0,
+      },
+    });
+
+    const first = await runAutomationCycle({ storage, createAlpacaClient: () => mock.client });
+    const second = await runAutomationCycle({ storage, createAlpacaClient: () => mock.client });
+    const third = await runAutomationCycle({ storage, createAlpacaClient: () => mock.client });
+    const fourth = await runAutomationCycle({ storage, createAlpacaClient: () => mock.client });
+
+    assert.match(first.status.lastSummary, /Scanned 1\/3 symbols/);
+    assert.match(second.status.lastSummary, /Scanned 1\/3 symbols/);
+    assert.match(third.status.lastSummary, /Scanned 1\/3 symbols/);
+    assert.ok(fourth.status.activity.some((item) => item.type === 'deferred' && /Rotation active\. Scanning 1\/3 symbols this cycle, deferred 2\./.test(item.detail)));
+    assert.ok(fourth.status.activity.some((item) => item.type === 'deferred' && /unchanged since last scan/i.test(item.detail)));
   });
-
-  const first = await runAutomationCycle({ storage, createAlpacaClient: () => mock.client });
-  const second = await runAutomationCycle({ storage, createAlpacaClient: () => mock.client });
-  const third = await runAutomationCycle({ storage, createAlpacaClient: () => mock.client });
-  const fourth = await runAutomationCycle({ storage, createAlpacaClient: () => mock.client });
-
-  assert.match(first.status.lastSummary, /Scanned 1\/3 symbols/);
-  assert.match(second.status.lastSummary, /Scanned 1\/3 symbols/);
-  assert.match(third.status.lastSummary, /Scanned 1\/3 symbols/);
-  assert.ok(fourth.status.activity.some((item) => item.type === 'deferred' && /Rotation active\. Scanning 1\/3 symbols this cycle, deferred 2\./.test(item.detail)));
-  assert.ok(fourth.status.activity.some((item) => item.type === 'deferred' && /unchanged since last scan/i.test(item.detail)));
 });
 
 test('GET / renders connected account data when Alpaca client is available', async () => {

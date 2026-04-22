@@ -69,6 +69,11 @@
           <button type="submit">Run scan now</button>
         </form>
       </div>
+      <div class="flash <%= automationSettings.autoSubmit ? 'error' : 'success' %>">
+        <%= automationSettings.autoSubmit
+          ? 'Auto-submit is currently ON. New qualifying automation signals can send paper bracket orders without manual review.'
+          : 'Auto-submit is OFF. Automation can still scan and generate candidates, but it should not place new paper orders automatically.' %>
+      </div>
       <form action="/orders/cancel-open" method="post" class="inline-form compact-actions" style="margin-bottom: 12px;">
         <button type="submit">Cancel all open paper orders</button>
       </form>
