@@ -255,7 +255,7 @@
       <h2>Open positions</h2>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Symbol</th><th>Side</th><th>Qty</th><th>Avg entry</th><th>Market value</th><th>Unrealized P/L</th></tr></thead>
+          <thead><tr><th>Symbol</th><th>Side</th><th>Qty</th><th>Avg entry</th><th>Market value</th><th>Unrealized P/L</th><th>Actions</th></tr></thead>
           <tbody>
             <% if (positions.length) { positions.forEach((position) => { %>
               <tr>
@@ -265,9 +265,15 @@
                 <td>$<%= Number(position.avg_entry_price).toFixed(2) %></td>
                 <td>$<%= Number(position.market_value).toFixed(2) %></td>
                 <td><%= Number(position.unrealized_pl).toFixed(2) %></td>
+                <td>
+                  <form action="/positions/flatten-symbol" method="post" class="inline-form compact-actions">
+                    <input type="hidden" name="symbol" value="<%= position.symbol %>" />
+                    <button type="submit">Flatten</button>
+                  </form>
+                </td>
               </tr>
             <% }) } else { %>
-              <tr><td colspan="6" class="muted">No open paper positions.</td></tr>
+              <tr><td colspan="7" class="muted">No open paper positions.</td></tr>
             <% } %>
           </tbody>
         </table>
@@ -304,7 +310,7 @@
       <p class="mini-note">These are order rows, not unique trade ideas. Bracket entries often fan out into linked exit legs, and replacements/cancels can add extra rows while still belonging to one setup.</p>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Symbol</th><th>Side</th><th>Qty</th><th>Type</th><th>Status</th><th>Submitted</th></tr></thead>
+          <thead><tr><th>Symbol</th><th>Side</th><th>Qty</th><th>Type</th><th>Status</th><th>Submitted</th><th>Actions</th></tr></thead>
           <tbody>
             <% if (orders.length) { orders.forEach((order) => { %>
               <tr>
@@ -314,9 +320,15 @@
                 <td><%= order.order_type %></td>
                 <td><%= order.status %></td>
                 <td><%= new Date(order.submitted_at).toLocaleString() %></td>
+                <td>
+                  <form action="/orders/cancel-symbol" method="post" class="inline-form compact-actions">
+                    <input type="hidden" name="symbol" value="<%= order.symbol %>" />
+                    <button type="submit">Cancel symbol orders</button>
+                  </form>
+                </td>
               </tr>
             <% }) } else { %>
-              <tr><td colspan="6" class="muted">No open paper orders.</td></tr>
+              <tr><td colspan="7" class="muted">No open paper orders.</td></tr>
             <% } %>
           </tbody>
         </table>

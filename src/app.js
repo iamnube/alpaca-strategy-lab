@@ -724,6 +724,43 @@ function createApp({ storage = createStorage(), createAlpacaClient = createDefau
     }
   });
 
+  app.post('/orders/cancel-symbol', async (req, res) => {
+    const alpaca = createAlpacaClient();
+    if (!alpaca) return res.redirect('/?error=Missing Alpaca paper credentials');
+
+    const symbol = String(req.body.symbol || '').trim().toUpperCase();
+    if (!symbol) return res.redirect('/?error=Symbol is required');
+
+    try {
+      const orders = await alpaca.getOrders({ status: 'open', direction: 'desc' });
+      const matching = orders.filter((order) => String(order.symbol || '').toUpperCase() === symbol);
+      for (const order of matching) {
+        if (typeof alpaca.cancelOrder === 'function') await alpaca.cancelOrder(order.id);
+        else if (typeof alpaca.cancelOrderById === 'function') await alpaca.cancelOrderById(order.id);
+        else throw new Error('Alpaca client does not expose order cancellation');
+      }
+      return res.redirect(`/?success=${encodeURIComponent(`Canceled ${matching.length} open paper order(s) for ${symbol}`)}`);
+    } catch (error) {
+      return res.redirect(`/?error=${encodeURIComponent(error.message)}`);
+    }
+  });
+
+  app.post('/positions/flatten-symbol', async (req, res) => {
+    const alpaca = createAlpacaClient();
+    if (!alpaca) return res.redirect('/?error=Missing Alpaca paper credentials');
+
+    const symbol = String(req.body.symbol || '').trim().toUpperCase();
+    if (!symbol) return res.redirect('/?error=Symbol is required');
+
+    try {
+      if (typeof alpaca.closePosition === 'function') await alpaca.closePosition(symbol);
+      else throw new Error('Alpaca client does not expose symbol position close helper');
+      return res.redirect(`/?success=${encodeURIComponent(`Requested flatten for ${symbol}`)}`);
+    } catch (error) {
+      return res.redirect(`/?error=${encodeURIComponent(error.message)}`);
+    }
+  });
+
   app.get('/api/orders', async (req, res) => {
     const alpaca = createAlpacaClient();
     if (!alpaca) return res.status(400).json({ ok: false, error: 'Missing Alpaca paper credentials' });
