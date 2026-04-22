@@ -275,6 +275,31 @@
     </section>
 
     <section class="card wide">
+      <h2>Position provenance</h2>
+      <p class="mini-note">Shows the closest known journal/setup context for each currently open paper position.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Symbol</th><th>Source</th><th>Journal status</th><th>Entry</th><th>Stop</th><th>Target</th><th>Thesis</th></tr></thead>
+          <tbody>
+            <% if (positionProvenance.length) { positionProvenance.forEach((row) => { %>
+              <tr>
+                <td><%= row.symbol %></td>
+                <td><%= row.strategy %></td>
+                <td><%= row.journalStatus || '—' %></td>
+                <td><%= row.entryPrice ? '$' + Number(row.entryPrice).toFixed(2) : '—' %></td>
+                <td><%= row.stopPrice ? '$' + Number(row.stopPrice).toFixed(2) : '—' %></td>
+                <td><%= row.targetPrice ? '$' + Number(row.targetPrice).toFixed(2) : '—' %></td>
+                <td><%= row.thesis || 'No matching journal context found.' %></td>
+              </tr>
+            <% }) } else { %>
+              <tr><td colspan="7" class="muted">No open positions, so no provenance to show.</td></tr>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card wide">
       <h2>Open paper orders</h2>
       <p class="mini-note">These are order rows, not unique trade ideas. Bracket entries often fan out into linked exit legs, and replacements/cancels can add extra rows while still belonging to one setup.</p>
       <div class="table-wrap">

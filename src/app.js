@@ -401,6 +401,24 @@ function summarizeAutomationJournalRisk(journal, automationSettings) {
   };
 }
 
+function buildPositionProvenance(positions, journal) {
+  const entries = Array.isArray(journal) ? journal : [];
+  return (positions || []).map((position) => {
+    const symbol = String(position.symbol || '').toUpperCase();
+    const match = entries.find((entry) => String(entry.symbol || '').toUpperCase() === symbol);
+    return {
+      symbol,
+      strategy: match?.automationCandidateId ? 'automation' : 'manual_or_unknown',
+      thesis: match?.thesis || null,
+      entryPrice: match?.entryPrice ?? null,
+      stopPrice: match?.stopPrice ?? null,
+      targetPrice: match?.targetPrice ?? null,
+      journalStatus: match?.status || null,
+      createdAt: match?.createdAt || null,
+    };
+  });
+}
+
 function maybeCreateAutomationJournalEntries(existingJournal, candidates) {
   const seenIds = new Set(existingJournal.filter((entry) => entry.automationCandidateId).map((entry) => entry.automationCandidateId));
   const additions = candidates
@@ -452,6 +470,7 @@ async function getDashboardData({ storage, createAlpacaClient, plannerInput, pla
     automationCandidates: automationStatus.candidates || [],
     orderDiagnostics: [],
     automationRisk: { autoSubmittedCount: 0, legacyAutoSubmittedCount: 0, legacySymbols: [] },
+    positionProvenance: [],
     plannerInput,
     plannerResult,
     workflow: [],
@@ -497,6 +516,7 @@ async function getDashboardData({ storage, createAlpacaClient, plannerInput, pla
   }
 
   state.automationRisk = summarizeAutomationJournalRisk(state.journal, state.automationSettings);
+  state.positionProvenance = buildPositionProvenance(state.positions, state.journal);
   state.workflow = buildWorkflow(state);
   return state;
 }
@@ -547,6 +567,7 @@ function createApp({ storage = createStorage(), createAlpacaClient = createDefau
       ...data,
       orderDiagnostics: data.orderDiagnostics || [],
       automationRisk: data.automationRisk || { autoSubmittedCount: 0, legacyAutoSubmittedCount: 0, legacySymbols: [] },
+      positionProvenance: data.positionProvenance || [],
       checklistItems,
       success: req.query.success,
       error: req.query.error || res.locals.plannerError,
