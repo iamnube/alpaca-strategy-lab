@@ -27,6 +27,9 @@ const automationDefaults = {
   takeProfitBufferPercent: 0,
   minimumPrice: 5,
   maximumPrice: 1000,
+  avoidMidday: true,
+  middayStartHour: 11,
+  middayEndHour: 13,
 };
 
 const automationStatusDefaults = {
@@ -358,6 +361,9 @@ function normalizeAutomationSettings(settings = {}) {
     takeProfitBufferPercent: Math.max(0, Number(settings.takeProfitBufferPercent || automationDefaults.takeProfitBufferPercent)),
     minimumPrice: Math.max(0.01, Number(settings.minimumPrice || automationDefaults.minimumPrice)),
     maximumPrice: Math.max(1, Number(settings.maximumPrice || automationDefaults.maximumPrice)),
+    avoidMidday: settings.avoidMidday !== undefined ? Boolean(settings.avoidMidday) : automationDefaults.avoidMidday,
+    middayStartHour: Math.max(0, Math.min(23, Number(settings.middayStartHour ?? automationDefaults.middayStartHour))),
+    middayEndHour: Math.max(1, Math.min(24, Number(settings.middayEndHour ?? automationDefaults.middayEndHour))),
     cooldownBars: Math.max(0, Number(settings.cooldownBars || automationDefaults.cooldownBars)),
     candidateMaxAgeHours: Math.max(1, Number(settings.candidateMaxAgeHours || automationDefaults.candidateMaxAgeHours)),
     closeHourAvoidMinutes: Math.max(0, Number(settings.closeHourAvoidMinutes ?? automationDefaults.closeHourAvoidMinutes)),
@@ -371,6 +377,14 @@ function isWithinCloseAvoidWindow(now = new Date(), avoidMinutes = 60) {
   close.setHours(16, 0, 0, 0);
   const msToClose = close.getTime() - now.getTime();
   return msToClose >= 0 && msToClose <= avoidMinutes * 60 * 1000;
+}
+
+function isWithinMiddayWindow(now = new Date(), settings = automationDefaults) {
+  if (!settings.avoidMidday) return false;
+  const startHour = Number(settings.middayStartHour ?? 11);
+  const endHour = Number(settings.middayEndHour ?? 13);
+  const hour = now.getHours() + (now.getMinutes() / 60);
+  return hour >= startHour && hour < endHour;
 }
 
 function pruneStaleCandidates(candidates, settings) {
@@ -446,6 +460,17 @@ async function runAutomationCycle({ storage, createAlpacaClient, logger = () => 
     status.lastRunAt = new Date().toISOString();
     status.lastError = null;
     status.lastSummary = `Skipped scan: within ${automationSettings.closeHourAvoidMinutes} minute(s) of market close.`;
+    status.runCount += 1;
+    status = pushActivity(status, { at: new Date().toISOString(), symbol: 'SYSTEM', type: 'skipped', detail: status.lastSummary });
+    await writeAutomationStatus(storage, status);
+    logger(status.lastSummary);
+    return { ok: true, skipped: true, settings: automationSettings, status };
+  }
+
+  if (isWithinMiddayWindow(new Date(), automationSettings)) {
+    status.lastRunAt = new Date().toISOString();
+    status.lastError = null;
+    status.lastSummary = `Skipped scan: midday filter active between ${automationSettings.middayStartHour}:00 and ${automationSettings.middayEndHour}:00 ET.`;
     status.runCount += 1;
     status = pushActivity(status, { at: new Date().toISOString(), symbol: 'SYSTEM', type: 'skipped', detail: status.lastSummary });
     await writeAutomationStatus(storage, status);
@@ -670,6 +695,7 @@ export {
   createAutomationEngine,
   evaluateLiquiditySweep,
   isEtfSymbol,
+  isWithinMiddayWindow,
   normalizeAutomationSettings,
   normalizeAutomationStatus,
   runAutomationCycle,

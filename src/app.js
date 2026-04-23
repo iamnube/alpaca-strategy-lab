@@ -139,6 +139,9 @@ const automationSettingsSchema = z.object({
   takeProfitBufferPercent: z.coerce.number().min(0).max(5),
   minimumPrice: z.coerce.number().min(0.01).max(10000),
   maximumPrice: z.coerce.number().min(1).max(100000),
+  avoidMidday: z.string().optional(),
+  middayStartHour: z.coerce.number().min(0).max(23).optional(),
+  middayEndHour: z.coerce.number().min(1).max(24).optional(),
 }).superRefine((settings, ctx) => {
   if (settings.maximumPrice <= settings.minimumPrice) {
     ctx.addIssue({ code: 'custom', path: ['maximumPrice'], message: 'Maximum price must be above minimum price.' });
@@ -146,6 +149,10 @@ const automationSettingsSchema = z.object({
 
   if (settings.symbolsPerCycle > settings.maxWatchlistSymbols) {
     ctx.addIssue({ code: 'custom', path: ['symbolsPerCycle'], message: 'Symbols per cycle cannot exceed the watchlist cap.' });
+  }
+
+  if ((settings.middayEndHour ?? 13) <= (settings.middayStartHour ?? 11)) {
+    ctx.addIssue({ code: 'custom', path: ['middayEndHour'], message: 'Midday end hour must be after midday start hour.' });
   }
 });
 
@@ -599,12 +606,13 @@ function createApp({ storage = createStorage(), createAlpacaClient = createDefau
     const settings = await storage.readSettings();
     await storage.saveSettings({
       ...settings,
-      automation: {
-        ...parsed.data,
-        enabled: Boolean(req.body.enabled),
-        autoSubmit: Boolean(req.body.autoSubmit),
-        rotateWatchlist: Boolean(req.body.rotateWatchlist),
-      },
+        automation: {
+          ...parsed.data,
+          enabled: Boolean(req.body.enabled),
+          autoSubmit: Boolean(req.body.autoSubmit),
+          avoidMidday: Boolean(req.body.avoidMidday),
+          rotateWatchlist: Boolean(req.body.rotateWatchlist),
+        },
     });
     await automationEngine.start();
     return res.redirect('/?success=Automation settings updated');

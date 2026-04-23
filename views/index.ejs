@@ -125,6 +125,11 @@
           <label>Minimum price<input type="number" name="minimumPrice" step="0.01" value="<%= automationSettings.minimumPrice %>" /></label>
           <label>Maximum price<input type="number" name="maximumPrice" step="0.01" value="<%= automationSettings.maximumPrice %>" /></label>
         </div>
+        <div class="three-col">
+          <label class="checkbox-row"><input type="checkbox" name="avoidMidday" value="1" <%= automationSettings.avoidMidday ? 'checked' : '' %> /> Skip midday scans</label>
+          <label>Midday start hour ET<input type="number" name="middayStartHour" min="0" max="23" value="<%= automationSettings.middayStartHour ?? 11 %>" /></label>
+          <label>Midday end hour ET<input type="number" name="middayEndHour" min="1" max="24" value="<%= automationSettings.middayEndHour ?? 13 %>" /></label>
+        </div>
         <button type="submit">Save automation settings</button>
       </form>
       <p class="mini-note">Automation stays paper-only. It now checks the last few bars for sweep then reclaim/rejection confirmation, with slightly looser ETF thresholds and review-first defaults.</p>
