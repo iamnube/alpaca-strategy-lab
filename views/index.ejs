@@ -130,6 +130,11 @@
           <label>Midday start hour ET<input type="number" name="middayStartHour" min="0" max="23" value="<%= automationSettings.middayStartHour ?? 11 %>" /></label>
           <label>Midday end hour ET<input type="number" name="middayEndHour" min="1" max="24" value="<%= automationSettings.middayEndHour ?? 13 %>" /></label>
         </div>
+        <div class="three-col">
+          <label>ETF cooldown bars<input type="number" name="etfCooldownBars" min="0" max="20" value="<%= automationSettings.etfCooldownBars ?? 1 %>" /></label>
+          <label>Stock cooldown bars<input type="number" name="stockCooldownBars" min="0" max="20" value="<%= automationSettings.stockCooldownBars ?? 3 %>" /></label>
+          <label>Shared fallback cooldown bars<input type="number" name="cooldownBars" min="0" max="20" value="<%= automationSettings.cooldownBars %>" /></label>
+        </div>
         <button type="submit">Save automation settings</button>
       </form>
       <p class="mini-note">Automation stays paper-only. It now checks the last few bars for sweep then reclaim/rejection confirmation, with slightly looser ETF thresholds and review-first defaults.</p>

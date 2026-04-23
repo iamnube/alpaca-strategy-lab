@@ -30,6 +30,8 @@ const automationDefaults = {
   avoidMidday: true,
   middayStartHour: 11,
   middayEndHour: 13,
+  etfCooldownBars: 1,
+  stockCooldownBars: 3,
 };
 
 const automationStatusDefaults = {
@@ -365,6 +367,8 @@ function normalizeAutomationSettings(settings = {}) {
     middayStartHour: Math.max(0, Math.min(23, Number(settings.middayStartHour ?? automationDefaults.middayStartHour))),
     middayEndHour: Math.max(1, Math.min(24, Number(settings.middayEndHour ?? automationDefaults.middayEndHour))),
     cooldownBars: Math.max(0, Number(settings.cooldownBars || automationDefaults.cooldownBars)),
+    etfCooldownBars: Math.max(0, Number(settings.etfCooldownBars ?? automationDefaults.etfCooldownBars)),
+    stockCooldownBars: Math.max(0, Number(settings.stockCooldownBars ?? automationDefaults.stockCooldownBars)),
     candidateMaxAgeHours: Math.max(1, Number(settings.candidateMaxAgeHours || automationDefaults.candidateMaxAgeHours)),
     closeHourAvoidMinutes: Math.max(0, Number(settings.closeHourAvoidMinutes ?? automationDefaults.closeHourAvoidMinutes)),
   };
@@ -527,7 +531,9 @@ async function runAutomationCycle({ storage, createAlpacaClient, logger = () => 
         continue;
       }
 
-      const cooldownBars = Number(automationSettings.cooldownBars || 0);
+      const cooldownBars = isEtfSymbol(symbol)
+        ? Number(automationSettings.etfCooldownBars ?? automationSettings.cooldownBars ?? 0)
+        : Number(automationSettings.stockCooldownBars ?? automationSettings.cooldownBars ?? 0);
       const lastSignalTs = previousState.lastSignalBarTimestamp;
       if (cooldownBars > 0 && lastSignalTs && Array.isArray(bars)) {
         const lastIndex = bars.findIndex((bar) => bar.timestamp === lastSignalTs);

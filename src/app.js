@@ -142,6 +142,8 @@ const automationSettingsSchema = z.object({
   avoidMidday: z.string().optional(),
   middayStartHour: z.coerce.number().min(0).max(23).optional(),
   middayEndHour: z.coerce.number().min(1).max(24).optional(),
+  etfCooldownBars: z.coerce.number().min(0).max(20).optional(),
+  stockCooldownBars: z.coerce.number().min(0).max(20).optional(),
 }).superRefine((settings, ctx) => {
   if (settings.maximumPrice <= settings.minimumPrice) {
     ctx.addIssue({ code: 'custom', path: ['maximumPrice'], message: 'Maximum price must be above minimum price.' });
