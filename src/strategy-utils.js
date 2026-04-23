@@ -3,8 +3,13 @@ function round(value, digits = 4) {
   return Number(value.toFixed(digits))
 }
 
+const ETF_SYMBOLS = new Set([
+  'SPY', 'QQQ', 'IWM', 'DIA', 'XLF', 'XLE', 'XLK',
+  'SMH', 'SOXX', 'ARKK', 'EEM', 'EFA', 'EWJ', 'VXUS',
+])
+
 function isEtfSymbol(symbol) {
-  return ['SPY', 'QQQ', 'IWM', 'DIA', 'XLF', 'XLE', 'XLK', 'SMH', 'SOXX', 'ARKK', 'EEM', 'EFA', 'EWJ', 'VXUS'].includes(String(symbol || '').toUpperCase())
+  return ETF_SYMBOLS.has(String(symbol || '').toUpperCase())
 }
 
 function getBarBodyRatio(bar) {
@@ -52,4 +57,11 @@ function simpleMovingAverage(values, period) {
   return sum / slice.length
 }
 
-export { round, isEtfSymbol, getBarBodyRatio, averageTrueRange, cumulativeVwap, simpleMovingAverage }
+export {
+  round,
+  isEtfSymbol,
+  getBarBodyRatio,
+  averageTrueRange,
+  cumulativeVwap,
+  simpleMovingAverage,
+}

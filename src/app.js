@@ -125,6 +125,9 @@ const automationSettingsSchema = z.object({
   timeframe: z.enum(automationTimeframes),
   lookbackBars: z.coerce.number().min(6).max(100),
   signalWindowBars: z.coerce.number().min(1).max(5),
+  maxConfirmationAgeBars: z.coerce.number().min(0).max(5).optional(),
+  openGuardMinutes: z.coerce.number().min(0).max(60).optional(),
+  maxNotionalPerTrade: z.coerce.number().min(0).max(500000).optional(),
   minSweepPercent: z.coerce.number().min(0.01).max(5),
   etfMinSweepPercent: z.coerce.number().min(0.01).max(5),
   minBodyToRangeRatio: z.coerce.number().min(0.05).max(1),
@@ -413,9 +416,14 @@ function summarizeAutomationJournalRisk(journal, automationSettings) {
 
 function buildPositionProvenance(positions, journal) {
   const entries = Array.isArray(journal) ? journal : [];
+  const sortedEntries = [...entries].sort((a, b) => {
+    const ta = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+    const tb = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+    return tb - ta;
+  });
   return (positions || []).map((position) => {
     const symbol = String(position.symbol || '').toUpperCase();
-    const match = entries.find((entry) => String(entry.symbol || '').toUpperCase() === symbol);
+    const match = sortedEntries.find((entry) => String(entry.symbol || '').toUpperCase() === symbol);
     return {
       symbol,
       strategy: match?.automationCandidateId ? 'automation' : 'manual_or_unknown',
@@ -627,8 +635,12 @@ function createApp({ storage = createStorage(), createAlpacaClient = createDefau
       createAlpacaClient,
       logger: (message) => console.log(`[automation] ${message}`),
       onCandidates: persistAutomationCandidates,
+      _inFlight: automationEngine.inFlight,
     });
-    res.redirect(`/?success=${encodeURIComponent(result.status.lastSummary)}`);
+    if (result.skipped && result.reason === 'in-flight') {
+      return res.redirect('/?success=Scan already in progress, try again in a moment.');
+    }
+    res.redirect(`/?success=${encodeURIComponent(result.status?.lastSummary || 'Scan complete.')}`);
   });
 
   app.post('/journal', async (req, res) => {
