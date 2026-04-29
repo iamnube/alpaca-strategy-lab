@@ -77,36 +77,17 @@ This is still intentionally understandable, not a black-box trading engine.
 - clear automation activity log
 - explicit deferred/unchanged-bar logging when scans are skipped on purpose
 
-## Current diversified watchlist
+## Current default watchlist
 
-The default/persisted watchlist now includes a diversified mix of US large caps plus international exposure:
+The default/persisted watchlist is now a tighter late-session paper basket built from the strongest symbols in the recent walk-forward tests:
 
-- AAPL
-- MSFT
-- NVDA
-- AMZN
-- GOOGL
-- META
-- AVGO
-- JPM
-- V
-- MA
-- LLY
-- JNJ
-- XOM
-- CVX
-- CAT
-- GE
-- UNH
-- HD
-- COST
 - WMT
-- VXUS
-- EFA
-- EWJ
-- EEM
+- MSFT
+- GOOGL
+- NVDA
+- MA
 
-This gives the scanner exposure across multiple sectors plus international equity ETFs.
+This keeps the scanner focused on the current lead setup instead of spreading attention across the broader ETF-heavy list.
 
 ## Requirements
 
@@ -170,16 +151,18 @@ Then open:
 
 - poll interval: 600 seconds
 - timeframe: 15 minute bars
-- watchlist cap: 24 symbols
-- symbols per cycle: 8
+- watchlist cap: 5 symbols
+- symbols per cycle: 5
 - watchlist rotation: enabled
 - auto-submit: off in persisted settings
+- allowed session: 2 PM to 4 PM ET
 - minimum sweep: 0.03% of price, 0.02% for supported ETFs
-- minimum body/range ratio: 0.18
-- confirmation body/range ratio: 0.15
-- reward to risk: 1.8R
+- minimum body/range ratio: 0.22
+- confirmation body/range ratio: 0.18
+- reclaim ATR multiplier: 0.10
+- reward to risk: 1.0R
 
-This lowers the default automation load from a full 24 symbol sweep every cycle to an 8 symbol rotating scan with batched market-data calls.
+This lowers the default automation load and aligns the paper runner with the current lead strategy candidate from the walk-forward backtests.
 
 ## Workflow and journaling features
 

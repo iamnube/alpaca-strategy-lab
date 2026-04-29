@@ -12,31 +12,33 @@ const automationDefaults = {
   pollIntervalSeconds: 600,
   timeframe: '15Min',
   lookbackBars: 24,
-  signalWindowBars: 3,
+  signalWindowBars: 1,
   maxConfirmationAgeBars: 1,
   minSweepPercent: 0.03,
   etfMinSweepPercent: 0.02,
-  minBodyToRangeRatio: 0.2,
-  confirmationBodyToRangeRatio: 0.15,
-  reclaimAtrMultiplier: 0,
-  rewardToRisk: 1.8,
-  maxOpenPositions: 3,
+  minBodyToRangeRatio: 0.22,
+  confirmationBodyToRangeRatio: 0.18,
+  reclaimAtrMultiplier: 0.1,
+  rewardToRisk: 1,
+  maxOpenPositions: 2,
   maxConcurrentOrdersPerSymbol: 1,
   cooldownBars: 0,
-  candidateMaxAgeHours: 12,
-  closeHourAvoidMinutes: 60,
-  openGuardMinutes: 15,
+  candidateMaxAgeHours: 2,
+  closeHourAvoidMinutes: 0,
+  openGuardMinutes: 0,
+  allowedStartHour: 14,
+  allowedEndHour: 16,
   watchlistScope: 'watchlist',
-  maxWatchlistSymbols: 30,
-  symbolsPerCycle: 8,
+  maxWatchlistSymbols: 5,
+  symbolsPerCycle: 5,
   rotateWatchlist: true,
-  riskPerTrade: 50,
+  riskPerTrade: 25,
   maxNotionalPerTrade: 10000,
   stopBufferPercent: 0.1,
   takeProfitBufferPercent: 0,
   minimumPrice: 5,
-  maximumPrice: 1000,
-  avoidMidday: true,
+  maximumPrice: 500,
+  avoidMidday: false,
   middayStartHour: 11,
   middayEndHour: 13,
   etfCooldownBars: 1,
@@ -388,6 +390,8 @@ function normalizeAutomationSettings(settings = {}) {
     avoidMidday: settings.avoidMidday !== undefined ? Boolean(settings.avoidMidday) : automationDefaults.avoidMidday,
     middayStartHour: Math.max(0, Math.min(23, Number(settings.middayStartHour ?? automationDefaults.middayStartHour))),
     middayEndHour: Math.max(1, Math.min(24, Number(settings.middayEndHour ?? automationDefaults.middayEndHour))),
+    allowedStartHour: Math.max(0, Math.min(23, Number(settings.allowedStartHour ?? automationDefaults.allowedStartHour))),
+    allowedEndHour: Math.max(1, Math.min(24, Number(settings.allowedEndHour ?? automationDefaults.allowedEndHour))),
     cooldownBars: Math.max(0, Number(settings.cooldownBars || automationDefaults.cooldownBars)),
     etfCooldownBars: Math.max(0, Number(settings.etfCooldownBars ?? automationDefaults.etfCooldownBars)),
     stockCooldownBars: Math.max(0, Number(settings.stockCooldownBars ?? automationDefaults.stockCooldownBars)),
@@ -419,6 +423,13 @@ function isWithinOpenGuardWindow(now = new Date(), guardMinutes = 15) {
   open.setHours(9, 30, 0, 0)
   const msSinceOpen = now.getTime() - open.getTime()
   return msSinceOpen >= 0 && msSinceOpen <= guardMinutes * 60 * 1000
+}
+
+function isWithinAllowedSessionWindow(now = new Date(), settings = automationDefaults) {
+  const startHour = Number(settings.allowedStartHour ?? 0)
+  const endHour = Number(settings.allowedEndHour ?? 24)
+  const hour = now.getHours() + (now.getMinutes() / 60)
+  return hour >= startHour && hour < endHour
 }
 
 function pruneStaleCandidates(candidates, settings) {
@@ -519,6 +530,17 @@ async function _runAutomationCycleImpl({ storage, createAlpacaClient, logger, on
   }
 
   const now = new Date()
+
+  if (!isWithinAllowedSessionWindow(now, automationSettings)) {
+    status.lastRunAt = now.toISOString()
+    status.lastError = null
+    status.lastSummary = `Skipped scan: allowed session is ${automationSettings.allowedStartHour}:00-${automationSettings.allowedEndHour}:00 ET.`
+    status.runCount += 1
+    status = pushActivity(status, { at: now.toISOString(), symbol: 'SYSTEM', type: 'skipped', detail: status.lastSummary })
+    await writeAutomationStatus(storage, status)
+    logger(status.lastSummary)
+    return { ok: true, skipped: true, settings: automationSettings, status }
+  }
 
   if (isWithinCloseAvoidWindow(now, automationSettings.closeHourAvoidMinutes)) {
     status.lastRunAt = now.toISOString()
@@ -742,6 +764,7 @@ export {
   automationStatusDefaults,
   createAutomationEngine,
   evaluateLiquiditySweep,
+  isWithinAllowedSessionWindow,
   isWithinMiddayWindow,
   isWithinOpenGuardWindow,
   normalizeAutomationSettings,

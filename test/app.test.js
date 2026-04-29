@@ -99,6 +99,10 @@ test('GET / renders with default watchlist and creates isolated data files', asy
   assert.equal(response.status, 200);
   assert.match(response.text, /No API creds yet/);
   assert.match(response.text, /Automation controls/);
+  assert.match(response.text, /Session window/);
+  assert.match(response.text, /Max confirmation age bars/);
+  assert.match(response.text, /Open guard minutes/);
+  assert.match(response.text, /Max notional per trade/);
   const settings = JSON.parse(await fs.readFile(storage.settingsPath, 'utf8'));
   assert.deepEqual(settings.watchlist, defaultWatchlist);
   assert.equal(settings.automation.enabled, false);
@@ -140,6 +144,52 @@ test('POST /watchlist accepts expanded diversified lists up to 30 symbols', asyn
   assert.deepEqual(settings.watchlist.slice(-2), ['SYM29', 'SYM30']);
 });
 
+test('POST /automation/preset/lead reapplies the lead paper preset', async () => {
+  const storage = await createTempStorage();
+  const app = createApp({ storage, createAlpacaClient: () => null, startAutomation: false });
+
+  await storage.saveSettings({
+    watchlist: ['AAPL', 'TSLA'],
+    automation: {
+      enabled: true,
+      autoSubmit: false,
+      pollIntervalSeconds: 300,
+      timeframe: '5Min',
+      lookbackBars: 12,
+      signalWindowBars: 3,
+      minSweepPercent: 0.05,
+      etfMinSweepPercent: 0.02,
+      minBodyToRangeRatio: 0.3,
+      confirmationBodyToRangeRatio: 0.25,
+      rewardToRisk: 1.5,
+      maxOpenPositions: 4,
+      maxConcurrentOrdersPerSymbol: 1,
+      maxWatchlistSymbols: 2,
+      symbolsPerCycle: 2,
+      rotateWatchlist: false,
+      riskPerTrade: 100,
+      stopBufferPercent: 0.1,
+      takeProfitBufferPercent: 0,
+      minimumPrice: 5,
+      maximumPrice: 1000,
+      allowedStartHour: 9,
+      allowedEndHour: 16,
+    },
+  });
+
+  const response = await request(app).post('/automation/preset/lead');
+
+  assert.equal(response.status, 302);
+  const settings = await storage.readSettings();
+  assert.deepEqual(settings.watchlist, ['WMT', 'MSFT', 'GOOGL', 'NVDA', 'MA']);
+  assert.equal(settings.automation.enabled, false);
+  assert.equal(settings.automation.autoSubmit, false);
+  assert.equal(settings.automation.signalWindowBars, 1);
+  assert.equal(settings.automation.rewardToRisk, 1);
+  assert.equal(settings.automation.allowedStartHour, 14);
+  assert.equal(settings.automation.allowedEndHour, 16);
+});
+
 test('POST /automation/settings persists guardrails and toggles', async () => {
   const storage = await createTempStorage();
   const app = createApp({ storage, createAlpacaClient: () => null, startAutomation: false });
@@ -154,6 +204,9 @@ test('POST /automation/settings persists guardrails and toggles', async () => {
       timeframe: '15Min',
       lookbackBars: '24',
       signalWindowBars: '3',
+      maxConfirmationAgeBars: '2',
+      openGuardMinutes: '10',
+      maxNotionalPerTrade: '7500',
       minSweepPercent: '0.15',
       etfMinSweepPercent: '0.1',
       minBodyToRangeRatio: '0.5',
@@ -178,6 +231,9 @@ test('POST /automation/settings persists guardrails and toggles', async () => {
   assert.equal(settings.automation.rotateWatchlist, true);
   assert.equal(settings.automation.timeframe, '15Min');
   assert.equal(settings.automation.signalWindowBars, 3);
+  assert.equal(settings.automation.maxConfirmationAgeBars, 2);
+  assert.equal(settings.automation.openGuardMinutes, 10);
+  assert.equal(settings.automation.maxNotionalPerTrade, 7500);
   assert.equal(settings.automation.etfMinSweepPercent, 0.1);
   assert.equal(settings.automation.confirmationBodyToRangeRatio, 0.2);
   assert.equal(settings.automation.maxWatchlistSymbols, 18);
@@ -460,7 +516,7 @@ test('POST /order supports bracket payloads', async () => {
 });
 
 test('runAutomationCycle can auto-submit a paper candidate and persist status', async () => {
-  await withMockedDateNow('2026-04-22T14:00:00Z', async () => {
+  await withMockedDateNow('2026-04-22T18:00:00Z', async () => {
     const storage = await createTempStorage();
     const mock = createMockAlpaca();
     await storage.saveSettings({
@@ -488,6 +544,8 @@ test('runAutomationCycle can auto-submit a paper candidate and persist status', 
         minimumPrice: 5,
         maximumPrice: 1000,
         closeHourAvoidMinutes: 0,
+        allowedStartHour: 0,
+        allowedEndHour: 24,
       },
     });
 
@@ -502,7 +560,7 @@ test('runAutomationCycle can auto-submit a paper candidate and persist status', 
 });
 
 test('runAutomationCycle rotates watchlist chunks and skips unchanged bars on revisit', async () => {
-  await withMockedDateNow('2026-04-22T14:00:00Z', async () => {
+  await withMockedDateNow('2026-04-22T18:00:00Z', async () => {
     const storage = await createTempStorage();
     const mock = createMockAlpaca();
     await storage.saveSettings({
@@ -530,6 +588,8 @@ test('runAutomationCycle rotates watchlist chunks and skips unchanged bars on re
         minimumPrice: 5,
         maximumPrice: 1000,
         closeHourAvoidMinutes: 0,
+        allowedStartHour: 0,
+        allowedEndHour: 24,
       },
     });
 
@@ -558,6 +618,6 @@ test('GET / renders connected account data when Alpaca client is available', asy
   assert.match(response.text, /Workflow state/);
   assert.match(response.text, /Automation activity log/);
   assert.match(response.text, /\$10000\.00/);
-  assert.match(response.text, /AAPL/);
-  assert.match(response.text, /VXUS/);
+  assert.match(response.text, /WMT/);
+  assert.match(response.text, /MA/);
 });

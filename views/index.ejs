@@ -26,14 +26,14 @@
   <main class="grid">
     <section class="card wide stats-band">
       <div><span>Total ideas</span><strong><%= journalSummary.total %></strong></div>
-      <div><span>Open workflows</span><strong><%= journalSummary.open %></strong></div>
+      <div><span>Active-basket ideas</span><strong><%= currentJournalSummary.total %></strong></div>
       <div><span>Auto candidates</span><strong><%= automationCandidates.length %></strong></div>
       <div><span>Auto status</span><strong><%= automationSettings.enabled ? (automationSettings.autoSubmit ? 'Enabled + submit' : 'Enabled') : 'Disabled' %></strong></div>
       <div><span>Last automation run</span><strong><%= automationStatus.lastRunAt ? new Date(automationStatus.lastRunAt).toLocaleTimeString() : '—' %></strong></div>
-      <div><span>Expectancy</span><strong><%= journalSummary.expectancyR !== null ? journalSummary.expectancyR + 'R' : '—' %></strong></div>
+      <div><span>Active-basket expectancy</span><strong><%= currentJournalSummary.expectancyR !== null ? currentJournalSummary.expectancyR + 'R' : '—' %></strong></div>
       <div><span>Open positions</span><strong><%= positions.length %></strong></div>
       <div><span>Open orders</span><strong><%= orders.length %></strong></div>
-      <div><span>Legacy auto-submitted</span><strong><%= automationRisk.legacyAutoSubmittedCount %></strong></div>
+      <div><span>Legacy ideas</span><strong><%= legacyJournalSummary.total %></strong></div>
     </section>
 
     <section class="card">
@@ -68,9 +68,22 @@
     <section class="card wide">
       <div class="split-head">
         <h2>Automation controls</h2>
-        <form action="/automation/run" method="post" class="inline-form compact-actions">
-          <button type="submit">Run scan now</button>
-        </form>
+        <div class="inline-form compact-actions" style="gap: 8px;">
+          <form action="/automation/run" method="post" class="inline-form compact-actions">
+            <button type="submit">Run scan now</button>
+          </form>
+          <form action="/automation/preset/lead" method="post" class="inline-form compact-actions">
+            <button type="submit"><%= activePreset ? 'Re-apply lead preset' : 'Apply lead preset' %></button>
+          </form>
+        </div>
+      </div>
+      <div class="flash <%= activePreset ? 'success' : 'error' %>">
+        <strong><%= leadStrategyPreset.name %></strong>
+        <span><%= activePreset ? 'Active now.' : 'Not active right now.' %> <%= leadStrategyPreset.description %></span>
+      </div>
+      <div class="flash <%= sessionStatus.status === 'ready' ? 'success' : 'error' %>">
+        <strong><%= sessionStatus.shortLabel %></strong>
+        <span><%= sessionStatus.detail %></span>
       </div>
       <div class="flash <%= automationSettings.autoSubmit ? 'error' : 'success' %>">
         <%= automationSettings.autoSubmit
@@ -99,6 +112,16 @@
           <label>Poll every seconds<input type="number" name="pollIntervalSeconds" min="60" max="3600" value="<%= automationSettings.pollIntervalSeconds %>" /></label>
           <label>Lookback bars<input type="number" name="lookbackBars" min="6" max="100" value="<%= automationSettings.lookbackBars %>" /></label>
           <label>Signal window bars<input type="number" name="signalWindowBars" min="1" max="5" value="<%= automationSettings.signalWindowBars %>" /></label>
+        </div>
+        <div class="three-col">
+          <label>Max confirmation age bars<input type="number" name="maxConfirmationAgeBars" min="0" max="5" value="<%= automationSettings.maxConfirmationAgeBars ?? 1 %>" /></label>
+          <label>Open guard minutes<input type="number" name="openGuardMinutes" min="0" max="60" value="<%= automationSettings.openGuardMinutes ?? 15 %>" /></label>
+          <label>Max notional per trade ($)<input type="number" name="maxNotionalPerTrade" min="0" max="500000" step="0.01" value="<%= automationSettings.maxNotionalPerTrade ?? 10000 %>" /></label>
+        </div>
+        <div class="three-col">
+          <label>Allowed start hour ET<input type="number" name="allowedStartHour" min="0" max="23" value="<%= automationSettings.allowedStartHour ?? 14 %>" /></label>
+          <label>Allowed end hour ET<input type="number" name="allowedEndHour" min="1" max="24" value="<%= automationSettings.allowedEndHour ?? 16 %>" /></label>
+          <div class="mini-note">Lead paper setup currently focuses on late-session scans.</div>
         </div>
         <div class="three-col">
           <label>Risk per trade ($)<input type="number" name="riskPerTrade" step="0.01" value="<%= automationSettings.riskPerTrade %>" /></label>
@@ -137,13 +160,17 @@
         </div>
         <button type="submit">Save automation settings</button>
       </form>
-      <p class="mini-note">Automation stays paper-only. It now checks the last few bars for sweep then reclaim/rejection confirmation, with slightly looser ETF thresholds and review-first defaults.</p>
+      <p class="mini-note">Automation stays paper-only. The current default profile is a late-session base-hit variant: tight 1R exits, 1-bar confirmation freshness, and a focused five-name watchlist.</p>
       <div class="mini-note">One trade can create multiple visible Alpaca orders when brackets are used: an entry plus linked take-profit and stop-loss legs. So a burst of buy/sell rows does not always mean the strategy opened that many separate trades.</div>
       <div class="stats compact-stats top-gap">
         <div><span>Last summary</span><strong><%= automationStatus.lastSummary || '—' %></strong></div>
         <div><span>Runs</span><strong><%= automationStatus.runCount || 0 %></strong></div>
         <div><span>Last error</span><strong><%= automationStatus.lastError || 'None' %></strong></div>
         <div><span>Watchlist scope</span><strong><%= watchlist.length %> symbols</strong></div>
+        <div><span>Max confirm age</span><strong><%= automationSettings.maxConfirmationAgeBars ?? 1 %> bars</strong></div>
+        <div><span>Open guard</span><strong><%= automationSettings.openGuardMinutes ?? 15 %> min</strong></div>
+        <div><span>Allowed session</span><strong><%= automationSettings.allowedStartHour ?? 14 %>:00-<%= automationSettings.allowedEndHour ?? 16 %>:00 ET</strong></div>
+        <div><span>Notional cap</span><strong>$<%= Number(automationSettings.maxNotionalPerTrade ?? 10000).toLocaleString() %></strong></div>
       </div>
       <% if (automationRisk.legacyAutoSubmittedCount > 0) { %>
         <div class="mini-note" style="margin-top: 10px; color: #b45309;">
@@ -423,9 +450,9 @@
 
     <section class="card">
       <h2>Quick analytics</h2>
-      <% if (journalSummary.topSymbols.length) { %>
+      <% if (currentJournalSummary.topSymbols.length) { %>
         <div class="tag-list">
-          <% journalSummary.topSymbols.forEach((symbol) => { %>
+          <% currentJournalSummary.topSymbols.forEach((symbol) => { %>
             <div class="tag-card">
               <strong><%= symbol.symbol %></strong>
               <span><%= symbol.count %> ideas</span>
@@ -435,14 +462,14 @@
           <% }) %>
         </div>
       <% } else { %>
-        <p class="muted">Analytics fill in as you close out journal entries.</p>
+        <p class="muted">Current-basket analytics fill in as you log or close ideas for the active five-symbol setup.</p>
       <% } %>
     </section>
 
     <section class="card wide">
-      <h2>Journal</h2>
+      <h2>Current strategy journal</h2>
       <div class="journal-list">
-        <% if (journal.length) { journal.forEach((entry) => { %>
+        <% if (currentJournal.length) { currentJournal.forEach((entry) => { %>
           <article class="journal-entry">
             <div class="journal-top">
               <strong><%= entry.symbol %></strong>
@@ -481,9 +508,33 @@
             </form>
           </article>
         <% }) } else { %>
-          <p class="muted">No journal entries yet. Log the setup before you click submit.</p>
+          <p class="muted">No active-basket journal entries yet. Older experiments are kept below under legacy history.</p>
         <% } %>
       </div>
+    </section>
+
+    <section class="card wide">
+      <h2>Legacy journal history</h2>
+      <% if (legacyJournal.length) { %>
+        <p class="mini-note">These entries came from older baskets or earlier automation experiments. They are preserved for reference, but separated so they do not muddy the active lead setup.</p>
+        <div class="journal-list">
+          <% legacyJournal.forEach((entry) => { %>
+            <article class="journal-entry">
+              <div class="journal-top">
+                <strong><%= entry.symbol %></strong>
+                <span class="pill"><%= entry.side %></span>
+                <span class="pill state-<%= entry.status %>"><%= entry.status %></span>
+                <span>Score <%= entry.checklistScore %>/6</span>
+                <span><%= new Date(entry.createdAt).toLocaleString() %></span>
+              </div>
+              <p><strong>Thesis:</strong> <%= entry.thesis %></p>
+              <% if (entry.notes) { %><p><strong>Notes:</strong> <%= entry.notes %></p><% } %>
+            </article>
+          <% }) %>
+        </div>
+      <% } else { %>
+        <p class="muted">No legacy entries are currently sitting outside the active basket.</p>
+      <% } %>
     </section>
   </main>
 </body>

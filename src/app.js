@@ -17,12 +17,14 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, '..');
 const defaultWatchlist = [
-  'AAPL', 'MSFT', 'NVDA', 'AMZN', 'GOOGL',
-  'META', 'AVGO', 'JPM', 'V', 'MA',
-  'LLY', 'JNJ', 'XOM', 'CVX', 'CAT',
-  'GE', 'UNH', 'HD', 'COST', 'WMT',
-  'VXUS', 'EFA', 'EWJ', 'EEM',
+  'WMT', 'MSFT', 'GOOGL', 'NVDA', 'MA',
 ];
+const leadStrategyPreset = {
+  name: 'Lead late-session base-hit',
+  description: 'Walk-forward winner so far: focused five-name basket, fresh 1-bar confirmation, and a 2 PM to 4 PM ET scan window.',
+  watchlist: defaultWatchlist,
+  automation: automationDefaults,
+};
 const maxJournalEntries = 200;
 
 const checklistItems = [
@@ -36,6 +38,26 @@ const checklistItems = [
 
 const journalStatusOptions = ['planned', 'submitted', 'open', 'won', 'lost', 'scratched', 'canceled', 'auto-candidate', 'auto-submitted'];
 const automationTimeframes = ['5Min', '15Min', '1Hour'];
+
+function arraysMatch(left = [], right = []) {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
+function isLeadPresetActive(settings) {
+  const watchlist = settings.watchlist?.length ? settings.watchlist : defaultWatchlist;
+  const automation = normalizeAutomationSettings(settings.automation);
+  return arraysMatch(watchlist, leadStrategyPreset.watchlist)
+    && automation.timeframe === leadStrategyPreset.automation.timeframe
+    && automation.signalWindowBars === leadStrategyPreset.automation.signalWindowBars
+    && automation.minBodyToRangeRatio === leadStrategyPreset.automation.minBodyToRangeRatio
+    && automation.confirmationBodyToRangeRatio === leadStrategyPreset.automation.confirmationBodyToRangeRatio
+    && automation.reclaimAtrMultiplier === leadStrategyPreset.automation.reclaimAtrMultiplier
+    && automation.rewardToRisk === leadStrategyPreset.automation.rewardToRisk
+    && automation.maxOpenPositions === leadStrategyPreset.automation.maxOpenPositions
+    && automation.riskPerTrade === leadStrategyPreset.automation.riskPerTrade
+    && automation.allowedStartHour === leadStrategyPreset.automation.allowedStartHour
+    && automation.allowedEndHour === leadStrategyPreset.automation.allowedEndHour;
+}
 
 const journalEntrySchema = z.object({
   symbol: z.string().min(1),
@@ -127,6 +149,8 @@ const automationSettingsSchema = z.object({
   signalWindowBars: z.coerce.number().min(1).max(5),
   maxConfirmationAgeBars: z.coerce.number().min(0).max(5).optional(),
   openGuardMinutes: z.coerce.number().min(0).max(60).optional(),
+  allowedStartHour: z.coerce.number().min(0).max(23).optional(),
+  allowedEndHour: z.coerce.number().min(1).max(24).optional(),
   maxNotionalPerTrade: z.coerce.number().min(0).max(500000).optional(),
   minSweepPercent: z.coerce.number().min(0.01).max(5),
   etfMinSweepPercent: z.coerce.number().min(0.01).max(5),
@@ -158,6 +182,10 @@ const automationSettingsSchema = z.object({
 
   if ((settings.middayEndHour ?? 13) <= (settings.middayStartHour ?? 11)) {
     ctx.addIssue({ code: 'custom', path: ['middayEndHour'], message: 'Midday end hour must be after midday start hour.' });
+  }
+
+  if ((settings.allowedEndHour ?? 16) <= (settings.allowedStartHour ?? 14)) {
+    ctx.addIssue({ code: 'custom', path: ['allowedEndHour'], message: 'Allowed end hour must be after allowed start hour.' });
   }
 });
 
@@ -327,8 +355,60 @@ function summarizeJournal(journal) {
   };
 }
 
-function buildWorkflow({ credsConfigured, watchlist, journal, account, automationSettings, automationStatus, automationCandidates }) {
-  const latest = journal[0] ? normalizeJournalEntry(journal[0]) : null;
+function getEasternHourMinute(now = new Date()) {
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    hour12: false,
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+  const parts = formatter.formatToParts(now);
+  const hour = Number(parts.find((part) => part.type === 'hour')?.value ?? 0);
+  const minute = Number(parts.find((part) => part.type === 'minute')?.value ?? 0);
+  return { hour, minute, totalMinutes: (hour * 60) + minute };
+}
+
+function describeAutomationSession(automationSettings, now = new Date()) {
+  const startHour = Number(automationSettings.allowedStartHour ?? 0);
+  const endHour = Number(automationSettings.allowedEndHour ?? 24);
+  const startMinutes = startHour * 60;
+  const endMinutes = endHour * 60;
+  const { totalMinutes } = getEasternHourMinute(now);
+
+  if (totalMinutes >= startMinutes && totalMinutes < endMinutes) {
+    return {
+      status: 'ready',
+      shortLabel: 'In session now',
+      detail: `Session window is live until ${endHour}:00 ET. Manual scans and automation runs are currently allowed.`,
+    };
+  }
+
+  if (totalMinutes < startMinutes) {
+    return {
+      status: 'review',
+      shortLabel: 'Waiting for session',
+      detail: `Lead session runs ${startHour}:00-${endHour}:00 ET. Next eligible scan starts today at ${startHour}:00 ET.`,
+    };
+  }
+
+  return {
+    status: 'review',
+    shortLabel: 'Session closed',
+    detail: `Lead session ended at ${endHour}:00 ET. Next eligible scan starts tomorrow at ${startHour}:00 ET.`,
+  };
+}
+
+function splitJournalByWatchlist(journal, watchlist) {
+  const activeSymbols = new Set((watchlist || []).map((symbol) => String(symbol || '').toUpperCase()));
+  const normalized = (journal || []).map(normalizeJournalEntry);
+  return {
+    current: normalized.filter((entry) => activeSymbols.has(String(entry.symbol || '').toUpperCase())),
+    legacy: normalized.filter((entry) => !activeSymbols.has(String(entry.symbol || '').toUpperCase())),
+  };
+}
+
+function buildWorkflow({ credsConfigured, watchlist, currentJournal, account, automationSettings, automationStatus, automationCandidates, sessionStatus }) {
+  const latest = currentJournal?.[0] || null;
   return [
     {
       label: 'Paper API',
@@ -346,6 +426,11 @@ function buildWorkflow({ credsConfigured, watchlist, journal, account, automatio
       detail: automationSettings.enabled ? `Enabled on ${automationSettings.timeframe}, polling every ${automationSettings.pollIntervalSeconds}s.` : 'Disabled. Signals will not scan until you turn it on.',
     },
     {
+      label: 'Session window',
+      status: sessionStatus.status,
+      detail: sessionStatus.detail,
+    },
+    {
       label: 'Risk guardrails',
       status: automationSettings.riskPerTrade > 0 ? 'ready' : 'review',
       detail: `$${automationSettings.riskPerTrade} per trade, max ${automationSettings.maxOpenPositions} open positions, auto submit ${automationSettings.autoSubmit ? 'on' : 'off'}.`,
@@ -353,7 +438,7 @@ function buildWorkflow({ credsConfigured, watchlist, journal, account, automatio
     {
       label: 'Current workflow',
       status: latest || automationCandidates.length ? 'ready' : 'review',
-      detail: latest ? `Latest journal idea: ${latest.symbol} ${latest.side}, ${latest.status}.` : automationCandidates.length ? `Latest automation candidate: ${automationCandidates[0].symbol} ${automationCandidates[0].side}.` : 'No manual or automated trade workflows logged yet.',
+      detail: latest ? `Latest active-basket idea: ${latest.symbol} ${latest.side}, ${latest.status}.` : automationCandidates.length ? `Latest automation candidate: ${automationCandidates[0].symbol} ${automationCandidates[0].side}.` : 'No current-basket journal ideas yet. The lead setup is starting clean from the active watchlist.',
     },
     {
       label: 'Account health',
@@ -492,7 +577,16 @@ async function getDashboardData({ storage, createAlpacaClient, plannerInput, pla
     plannerInput,
     plannerResult,
     workflow: [],
+    activePreset: isLeadPresetActive(settings) ? leadStrategyPreset : null,
+    leadStrategyPreset,
+    sessionStatus: describeAutomationSession(settings.automation),
   };
+
+  const journalBuckets = splitJournalByWatchlist(state.journal, state.watchlist);
+  state.currentJournal = journalBuckets.current;
+  state.legacyJournal = journalBuckets.legacy;
+  state.currentJournalSummary = summarizeJournal(state.currentJournal);
+  state.legacyJournalSummary = summarizeJournal(state.legacyJournal);
 
   if (!alpaca) {
     state.workflow = buildWorkflow(state);
@@ -592,6 +686,16 @@ function createApp({ storage = createStorage(), createAlpacaClient = createDefau
       statusOptions: journalStatusOptions,
       automationTimeframes,
     });
+  });
+
+  app.post('/automation/preset/lead', async (req, res) => {
+    await storage.ensureDataFiles();
+    await storage.saveSettings({
+      watchlist: [...leadStrategyPreset.watchlist],
+      automation: { ...leadStrategyPreset.automation, enabled: false, autoSubmit: false },
+    });
+    await automationEngine.start();
+    return res.redirect('/?success=Lead preset applied. Automation stayed off so you can review before running it.');
   });
 
   app.post('/watchlist', async (req, res) => {
