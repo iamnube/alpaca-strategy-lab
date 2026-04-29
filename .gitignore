@@ -4,6 +4,8 @@ node_modules/
 .service/
 data/*.json
 !data/.gitkeep
+data/grid-search/
+data/wf-cache/
 backtest-data/
 .DS_Store
 npm-debug.log*
