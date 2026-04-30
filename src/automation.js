@@ -9,6 +9,8 @@ import {
 const automationDefaults = {
   enabled: false,
   autoSubmit: false,
+  autoSubmitArmMinutes: 20,
+  autoSubmitArmedUntil: null,
   pollIntervalSeconds: 600,
   timeframe: '15Min',
   lookbackBars: 24,
@@ -364,6 +366,8 @@ function normalizeAutomationSettings(settings = {}) {
     ...settings,
     enabled: Boolean(settings.enabled),
     autoSubmit: Boolean(settings.autoSubmit),
+    autoSubmitArmMinutes: Math.max(1, Number(settings.autoSubmitArmMinutes ?? automationDefaults.autoSubmitArmMinutes)),
+    autoSubmitArmedUntil: settings.autoSubmitArmedUntil ? new Date(settings.autoSubmitArmedUntil).toISOString() : null,
     pollIntervalSeconds: Math.max(60, Number(settings.pollIntervalSeconds || automationDefaults.pollIntervalSeconds)),
     lookbackBars: Math.max(6, Number(settings.lookbackBars || automationDefaults.lookbackBars)),
     signalWindowBars: Math.max(1, Math.min(5, Number(settings.signalWindowBars || automationDefaults.signalWindowBars))),
@@ -430,6 +434,12 @@ function isWithinAllowedSessionWindow(now = new Date(), settings = automationDef
   const endHour = Number(settings.allowedEndHour ?? 24)
   const hour = now.getHours() + (now.getMinutes() / 60)
   return hour >= startHour && hour < endHour
+}
+
+function isAutoSubmitArmed(settings = automationDefaults, now = new Date()) {
+  if (!settings.autoSubmit) return false
+  if (!settings.autoSubmitArmedUntil) return false
+  return new Date(settings.autoSubmitArmedUntil).getTime() > now.getTime()
 }
 
 function pruneStaleCandidates(candidates, settings) {
@@ -592,6 +602,7 @@ async function _runAutomationCycleImpl({ storage, createAlpacaClient, logger, on
 
     const activity = []
     const candidates = []
+    const autoSubmitArmed = isAutoSubmitArmed(automationSettings, now)
     const barsBySymbol = await collectBarsForSymbols(
       alpaca, activeSymbols, automationSettings.timeframe, automationSettings.lookbackBars + 2,
     )
@@ -667,14 +678,14 @@ async function _runAutomationCycleImpl({ storage, createAlpacaClient, logger, on
       const candidate = {
         id: `${symbol}-${result.timeframe}-${result.triggerBar.timestamp}`,
         createdAt: new Date().toISOString(),
-        status: automationSettings.autoSubmit ? 'submitted' : 'candidate',
-        autoSubmitted: automationSettings.autoSubmit,
+        status: autoSubmitArmed ? 'submitted' : 'candidate',
+        autoSubmitted: autoSubmitArmed,
         rewardToRisk: automationSettings.rewardToRisk,
         fillModel: 'close',
         ...result,
       }
 
-      if (automationSettings.autoSubmit) {
+      if (autoSubmitArmed) {
         await alpaca.createOrder({
           symbol,
           side: result.side,
@@ -690,7 +701,10 @@ async function _runAutomationCycleImpl({ storage, createAlpacaClient, logger, on
         const capNote = result.notionalCapped ? ' (qty capped by notional limit)' : ''
         activity.push({ at: new Date().toISOString(), symbol, type: 'submitted', detail: `Paper ${result.side} bracket order submitted at ${result.entryPrice}, qty ${result.qty}${capNote}.` })
       } else {
-        activity.push({ at: new Date().toISOString(), symbol, type: 'candidate', detail: `${result.side.toUpperCase()} candidate ready for review at ${result.entryPrice}.` })
+        const expiredNote = automationSettings.autoSubmit && !autoSubmitArmed
+          ? ' Auto-submit arm is not active, so this stayed review-only.'
+          : ''
+        activity.push({ at: new Date().toISOString(), symbol, type: 'candidate', detail: `${result.side.toUpperCase()} candidate ready for review at ${result.entryPrice}.${expiredNote}` })
       }
 
       candidates.push(candidate)
@@ -715,7 +729,7 @@ async function _runAutomationCycleImpl({ storage, createAlpacaClient, logger, on
     status.watchlistCursor = selection.nextCursor
     status.runCount += 1
     status.lastSummary = candidates.length
-      ? `Scanned ${activeSymbols.length}/${watchlist.length} symbols, produced ${candidates.length} ${automationSettings.autoSubmit ? 'submitted order(s)' : 'candidate(s)'}, rotation ${automationSettings.rotateWatchlist ? 'on' : 'off'}.`
+      ? `Scanned ${activeSymbols.length}/${watchlist.length} symbols, produced ${candidates.length} ${autoSubmitArmed ? 'submitted order(s)' : 'candidate(s)'}, rotation ${automationSettings.rotateWatchlist ? 'on' : 'off'}${automationSettings.autoSubmit && !autoSubmitArmed ? ', auto-submit arm expired' : ''}.`
       : `Scanned ${activeSymbols.length}/${watchlist.length} symbols, no trades taken${selection.deferredSymbols.length ? `, deferred ${selection.deferredSymbols.length} by rotation` : ''}.`
     await writeAutomationStatus(storage, status)
     if (typeof onCandidates === 'function' && candidates.length) await onCandidates(candidates)
@@ -767,6 +781,7 @@ export {
   isWithinAllowedSessionWindow,
   isWithinMiddayWindow,
   isWithinOpenGuardWindow,
+  isAutoSubmitArmed,
   normalizeAutomationSettings,
   normalizeAutomationStatus,
   runAutomationCycle,

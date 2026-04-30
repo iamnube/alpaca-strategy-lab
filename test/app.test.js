@@ -107,6 +107,7 @@ test('GET / renders with default watchlist and creates isolated data files', asy
   assert.deepEqual(settings.watchlist, defaultWatchlist);
   assert.equal(settings.automation.enabled, false);
   assert.equal(settings.automation.timeframe, '15Min');
+  assert.equal(settings.automation.autoSubmitArmMinutes, 20);
   assert.deepEqual(JSON.parse(await fs.readFile(storage.journalPath, 'utf8')), []);
   assert.deepEqual(JSON.parse(await fs.readFile(storage.automationStatusPath, 'utf8')), normalizeAutomationStatus());
 });
@@ -202,6 +203,7 @@ test('POST /automation/settings persists guardrails and toggles', async () => {
       autoSubmit: '',
       pollIntervalSeconds: '180',
       timeframe: '15Min',
+      autoSubmitArmMinutes: '30',
       lookbackBars: '24',
       signalWindowBars: '3',
       maxConfirmationAgeBars: '2',
@@ -234,6 +236,7 @@ test('POST /automation/settings persists guardrails and toggles', async () => {
   assert.equal(settings.automation.maxConfirmationAgeBars, 2);
   assert.equal(settings.automation.openGuardMinutes, 10);
   assert.equal(settings.automation.maxNotionalPerTrade, 7500);
+  assert.equal(settings.automation.autoSubmitArmMinutes, 30);
   assert.equal(settings.automation.etfMinSweepPercent, 0.1);
   assert.equal(settings.automation.confirmationBodyToRangeRatio, 0.2);
   assert.equal(settings.automation.maxWatchlistSymbols, 18);
@@ -515,6 +518,56 @@ test('POST /order supports bracket payloads', async () => {
   });
 });
 
+test('POST /automation/settings arms auto-submit for a limited window', async () => {
+  const storage = await createTempStorage();
+  const app = createApp({ storage, createAlpacaClient: () => null, startAutomation: false });
+
+  const response = await request(app)
+    .post('/automation/settings')
+    .type('form')
+    .send({
+      enabled: '1',
+      autoSubmit: '1',
+      autoSubmitConfirmText: 'ENABLE PAPER AUTO SUBMIT',
+      autoSubmitArmMinutes: '15',
+      pollIntervalSeconds: '180',
+      timeframe: '15Min',
+      lookbackBars: '24',
+      signalWindowBars: '1',
+      maxConfirmationAgeBars: '1',
+      openGuardMinutes: '10',
+      maxNotionalPerTrade: '7500',
+      minSweepPercent: '0.15',
+      etfMinSweepPercent: '0.1',
+      minBodyToRangeRatio: '0.5',
+      confirmationBodyToRangeRatio: '0.2',
+      rewardToRisk: '2',
+      maxOpenPositions: '2',
+      maxConcurrentOrdersPerSymbol: '1',
+      maxWatchlistSymbols: '5',
+      symbolsPerCycle: '5',
+      rotateWatchlist: '1',
+      riskPerTrade: '75',
+      stopBufferPercent: '0.2',
+      takeProfitBufferPercent: '0',
+      minimumPrice: '10',
+      maximumPrice: '500',
+      allowedStartHour: '14',
+      allowedEndHour: '16',
+      middayStartHour: '11',
+      middayEndHour: '13',
+      etfCooldownBars: '1',
+      stockCooldownBars: '3',
+    });
+
+  assert.equal(response.status, 302);
+  const settings = await storage.readSettings();
+  assert.equal(settings.automation.autoSubmit, true);
+  assert.equal(settings.automation.autoSubmitArmMinutes, 15);
+  assert.ok(settings.automation.autoSubmitArmedUntil);
+  assert.ok(new Date(settings.automation.autoSubmitArmedUntil).getTime() > Date.now());
+});
+
 test('runAutomationCycle can auto-submit a paper candidate and persist status', async () => {
   await withMockedDateNow('2026-04-22T18:00:00Z', async () => {
     const storage = await createTempStorage();
@@ -524,6 +577,8 @@ test('runAutomationCycle can auto-submit a paper candidate and persist status', 
       automation: {
         enabled: true,
         autoSubmit: true,
+        autoSubmitArmMinutes: 20,
+        autoSubmitArmedUntil: '2099-04-22T18:20:00Z',
         pollIntervalSeconds: 300,
         timeframe: '5Min',
         lookbackBars: 6,
@@ -556,6 +611,53 @@ test('runAutomationCycle can auto-submit a paper candidate and persist status', 
     assert.equal(mock.submittedOrders.length, 1);
     const status = JSON.parse(await fs.readFile(storage.automationStatusPath, 'utf8'));
     assert.match(status.lastSummary, /produced 1 submitted order/);
+  });
+});
+
+test('runAutomationCycle falls back to review-only when auto-submit arm has expired', async () => {
+  await withMockedDateNow('2026-04-22T18:30:00Z', async () => {
+    const storage = await createTempStorage();
+    const mock = createMockAlpaca();
+    await storage.saveSettings({
+      watchlist: ['AAPL'],
+      automation: {
+        enabled: true,
+        autoSubmit: true,
+        autoSubmitArmMinutes: 20,
+        autoSubmitArmedUntil: '2000-04-22T18:20:00Z',
+        pollIntervalSeconds: 300,
+        timeframe: '5Min',
+        lookbackBars: 6,
+        signalWindowBars: 2,
+        minSweepPercent: 0.05,
+        etfMinSweepPercent: 0.02,
+        minBodyToRangeRatio: 0.15,
+        confirmationBodyToRangeRatio: 0.15,
+        rewardToRisk: 2,
+        maxOpenPositions: 3,
+        maxConcurrentOrdersPerSymbol: 1,
+        maxWatchlistSymbols: 1,
+        symbolsPerCycle: 1,
+        rotateWatchlist: true,
+        riskPerTrade: 50,
+        stopBufferPercent: 0.1,
+        takeProfitBufferPercent: 0,
+        minimumPrice: 5,
+        maximumPrice: 1000,
+        closeHourAvoidMinutes: 0,
+        allowedStartHour: 0,
+        allowedEndHour: 24,
+      },
+    });
+
+    const result = await runAutomationCycle({ storage, createAlpacaClient: () => mock.client });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.candidates.length, 1);
+    assert.equal(result.candidates[0].autoSubmitted, false);
+    assert.equal(mock.submittedOrders.length, 0);
+    const status = JSON.parse(await fs.readFile(storage.automationStatusPath, 'utf8'));
+    assert.match(status.lastSummary, /auto-submit arm expired/);
   });
 });
 

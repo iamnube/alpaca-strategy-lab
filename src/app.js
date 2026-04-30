@@ -142,6 +142,7 @@ const automationSettingsSchema = z.object({
   enabled: z.string().optional(),
   autoSubmit: z.string().optional(),
   autoSubmitConfirmText: z.string().optional(),
+  autoSubmitArmMinutes: z.coerce.number().min(1).max(240).optional(),
   rotateWatchlist: z.string().optional(),
   pollIntervalSeconds: z.coerce.number().min(60).max(3600),
   timeframe: z.enum(automationTimeframes),
@@ -717,6 +718,11 @@ function createApp({ storage = createStorage(), createAlpacaClient = createDefau
       return res.redirect('/?error=Type ENABLE PAPER AUTO SUBMIT to enable auto-submit');
     }
 
+    const armMinutes = Math.max(1, Number(parsed.data.autoSubmitArmMinutes ?? 20));
+    const armedUntil = wantsAutoSubmit
+      ? new Date(Date.now() + (armMinutes * 60 * 1000)).toISOString()
+      : null;
+
     const settings = await storage.readSettings();
     await storage.saveSettings({
       ...settings,
@@ -724,12 +730,14 @@ function createApp({ storage = createStorage(), createAlpacaClient = createDefau
           ...parsed.data,
           enabled: Boolean(req.body.enabled),
           autoSubmit: Boolean(req.body.autoSubmit),
+          autoSubmitArmMinutes: armMinutes,
+          autoSubmitArmedUntil: armedUntil,
           avoidMidday: Boolean(req.body.avoidMidday),
           rotateWatchlist: Boolean(req.body.rotateWatchlist),
         },
     });
     await automationEngine.start();
-    return res.redirect('/?success=Automation settings updated');
+    return res.redirect(`/?success=${encodeURIComponent(wantsAutoSubmit ? `Automation settings updated. Auto-submit armed for ${armMinutes} minute(s).` : 'Automation settings updated')}`);
   });
 
   app.post('/automation/run', async (req, res) => {
