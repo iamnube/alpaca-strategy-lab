@@ -52,6 +52,12 @@ For each promising candidate, capture:
 - realized paper outcome in R
 - quick note on why it worked or failed
 
+## Quick baseline command
+Run this before and after a paper session:
+- `npm run report:journal`
+
+It prints the current entry count, review backlog, stale open ideas, and any realized win-rate / expectancy data already captured in the journal.
+
 ## Decision rule after 1-2 sessions
 - Keep the preset if signals look clean and outcomes are at least roughly breakeven.
 - Tighten filters if there is too much noise.

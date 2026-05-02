@@ -8,6 +8,7 @@
     "start": "node src/server.js",
     "fetch:bars": "node scripts/fetch-bars.mjs",
     "backtest": "node src/backtest.js",
+    "report:journal": "node scripts/summarize-journal.mjs",
     "test": "node --test",
     "lint": "eslint .",
     "check": "npm run lint && npm test"
