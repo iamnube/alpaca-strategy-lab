@@ -44,7 +44,7 @@ if (!process.env.ALPACA_API_KEY || !process.env.ALPACA_SECRET_KEY) {
   throw new Error('Missing Alpaca paper credentials in .env');
 }
 
-const staleCandidates = journal.filter((entry) => entry.status === 'auto-submitted' && (entry.realizedR === null || entry.realizedR === undefined));
+const staleCandidates = journal.filter((entry) => ['auto-submitted', 'auto-candidate'].includes(entry.status) && (entry.realizedR === null || entry.realizedR === undefined));
 const after = staleCandidates.reduce((min, entry) => {
   if (!entry.createdAt) return min;
   const ts = new Date(entry.createdAt).getTime();
@@ -75,7 +75,7 @@ for (const order of orders) {
 const results = [];
 let updated = 0;
 const updatedJournal = journal.map((entry) => {
-  if (!(entry.status === 'auto-submitted' && (entry.realizedR === null || entry.realizedR === undefined))) return entry;
+  if (!(['auto-submitted', 'auto-candidate'].includes(entry.status) && (entry.realizedR === null || entry.realizedR === undefined))) return entry;
 
   const symbol = String(entry.symbol || '').toUpperCase();
   const symbolOrders = ordersBySymbol.get(symbol) || [];
@@ -93,6 +93,7 @@ const updatedJournal = journal.map((entry) => {
     id: entry.id,
     symbol,
     createdAt: entry.createdAt,
+    priorStatus: entry.status,
     entryOrder: filledEntry || canceledEntry || null,
     exitOrder: null,
     outcome: 'unmatched',
@@ -130,6 +131,10 @@ const updatedJournal = journal.map((entry) => {
     result.outcome = 'canceled';
     result.suggestedStatus = 'canceled';
     result.suggestedRealizedR = 0;
+  } else if (entry.status === 'auto-candidate') {
+    result.outcome = 'no_order_match';
+    result.suggestedStatus = 'canceled';
+    result.suggestedRealizedR = 0;
   }
 
   results.push(result);
@@ -137,7 +142,9 @@ const updatedJournal = journal.map((entry) => {
   if (!apply || !result.suggestedStatus) return entry;
 
   updated += 1;
-  const note = buildNote(result);
+  const note = result.outcome === 'no_order_match'
+    ? 'Marked stale automation candidate as canceled: no matching Alpaca paper entry order was found.'
+    : buildNote(result);
   return {
     ...entry,
     status: result.suggestedStatus,

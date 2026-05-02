@@ -63,7 +63,7 @@ For older auto-submitted paper entries, you can reconcile likely outcomes from A
 - dry run: `npm run reconcile:journal`
 - write suggested reviews: `npm run reconcile:journal -- --apply`
 
-This currently targets stale `auto-submitted` entries and suggests `won`, `lost`, `scratched`, or `canceled` when the Alpaca order flow is clear enough to match by symbol, side, price, and timing.
+This currently targets stale `auto-submitted` and `auto-candidate` entries. It suggests `won`, `lost`, `scratched`, or `canceled` when the Alpaca order flow is clear enough to match by symbol, side, price, and timing. For old `auto-candidate` entries with no matching paper entry order at all, it marks them canceled so the review backlog does not stay artificially open forever.
 
 ## Decision rule after 1-2 sessions
 - Keep the preset if signals look clean and outcomes are at least roughly breakeven.
