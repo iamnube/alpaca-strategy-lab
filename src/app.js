@@ -142,6 +142,7 @@ const automationSettingsSchema = z.object({
   enabled: z.string().optional(),
   autoSubmit: z.string().optional(),
   autoSubmitConfirmText: z.string().optional(),
+  autoSubmitRiskAckText: z.string().optional(),
   autoSubmitArmMinutes: z.coerce.number().min(1).max(240).optional(),
   rotateWatchlist: z.string().optional(),
   pollIntervalSeconds: z.coerce.number().min(60).max(3600),
@@ -714,8 +715,12 @@ function createApp({ storage = createStorage(), createAlpacaClient = createDefau
 
     const wantsAutoSubmit = Boolean(req.body.autoSubmit);
     const confirmText = String(req.body.autoSubmitConfirmText || '').trim();
+    const riskAckText = String(req.body.autoSubmitRiskAckText || '').trim();
     if (wantsAutoSubmit && confirmText !== 'ENABLE PAPER AUTO SUBMIT') {
       return res.redirect('/?error=Type ENABLE PAPER AUTO SUBMIT to enable auto-submit');
+    }
+    if (wantsAutoSubmit && riskAckText !== 'I UNDERSTAND THIS PLACES PAPER ORDERS') {
+      return res.redirect('/?error=Type I UNDERSTAND THIS PLACES PAPER ORDERS to arm auto-submit');
     }
 
     const armMinutes = Math.max(1, Number(parsed.data.autoSubmitArmMinutes ?? 20));

@@ -103,6 +103,7 @@ test('GET / renders with default watchlist and creates isolated data files', asy
   assert.match(response.text, /Max confirmation age bars/);
   assert.match(response.text, /Open guard minutes/);
   assert.match(response.text, /Max notional per trade/);
+  assert.match(response.text, /I UNDERSTAND THIS PLACES PAPER ORDERS/);
   const settings = JSON.parse(await fs.readFile(storage.settingsPath, 'utf8'));
   assert.deepEqual(settings.watchlist, defaultWatchlist);
   assert.equal(settings.automation.enabled, false);
@@ -518,6 +519,54 @@ test('POST /order supports bracket payloads', async () => {
   });
 });
 
+test('POST /automation/settings rejects auto-submit when risk acknowledgement is missing', async () => {
+  const storage = await createTempStorage();
+  const app = createApp({ storage, createAlpacaClient: () => null, startAutomation: false });
+
+  const response = await request(app)
+    .post('/automation/settings')
+    .type('form')
+    .send({
+      enabled: '1',
+      autoSubmit: '1',
+      autoSubmitConfirmText: 'ENABLE PAPER AUTO SUBMIT',
+      autoSubmitArmMinutes: '15',
+      pollIntervalSeconds: '180',
+      timeframe: '15Min',
+      lookbackBars: '24',
+      signalWindowBars: '1',
+      maxConfirmationAgeBars: '1',
+      openGuardMinutes: '10',
+      maxNotionalPerTrade: '7500',
+      minSweepPercent: '0.15',
+      etfMinSweepPercent: '0.1',
+      minBodyToRangeRatio: '0.5',
+      confirmationBodyToRangeRatio: '0.2',
+      rewardToRisk: '2',
+      maxOpenPositions: '2',
+      maxConcurrentOrdersPerSymbol: '1',
+      maxWatchlistSymbols: '5',
+      symbolsPerCycle: '5',
+      rotateWatchlist: '1',
+      riskPerTrade: '75',
+      stopBufferPercent: '0.2',
+      takeProfitBufferPercent: '0',
+      minimumPrice: '10',
+      maximumPrice: '500',
+      allowedStartHour: '14',
+      allowedEndHour: '16',
+      middayStartHour: '11',
+      middayEndHour: '13',
+      etfCooldownBars: '1',
+      stockCooldownBars: '3',
+    });
+
+  assert.equal(response.status, 302);
+  assert.equal(response.headers.location, '/?error=Type%20I%20UNDERSTAND%20THIS%20PLACES%20PAPER%20ORDERS%20to%20arm%20auto-submit');
+  const settings = await storage.readSettings();
+  assert.notEqual(settings.automation.autoSubmit, true);
+});
+
 test('POST /automation/settings arms auto-submit for a limited window', async () => {
   const storage = await createTempStorage();
   const app = createApp({ storage, createAlpacaClient: () => null, startAutomation: false });
@@ -529,6 +578,7 @@ test('POST /automation/settings arms auto-submit for a limited window', async ()
       enabled: '1',
       autoSubmit: '1',
       autoSubmitConfirmText: 'ENABLE PAPER AUTO SUBMIT',
+      autoSubmitRiskAckText: 'I UNDERSTAND THIS PLACES PAPER ORDERS',
       autoSubmitArmMinutes: '15',
       pollIntervalSeconds: '180',
       timeframe: '15Min',

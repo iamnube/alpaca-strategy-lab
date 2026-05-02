@@ -5,6 +5,7 @@ node_modules/
 data/*.json
 !data/.gitkeep
 data/grid-search/
+data/scalp-tests/
 data/wf-cache/
 backtest-data/
 .DS_Store

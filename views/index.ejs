@@ -90,7 +90,7 @@
           ? 'Auto-submit intent is ON. Fresh arm time is still required before new qualifying automation signals can send paper bracket orders.'
           : 'Auto-submit is OFF. Automation can still scan and generate candidates, but it should not place new paper orders automatically.' %>
       </div>
-      <div class="mini-note" style="margin-bottom: 12px; color: <%= automationSettings.autoSubmit ? '#b91c1c' : '#475569' %>;"><strong>Safety gate:</strong> turning on auto-submit now requires typing <code>ENABLE PAPER AUTO SUBMIT</code> before saving, and the arm expires automatically.</div>
+      <div class="mini-note" style="margin-bottom: 12px; color: <%= automationSettings.autoSubmit ? '#b91c1c' : '#475569' %>;"><strong>Safety gate:</strong> turning on auto-submit now requires typing <code>ENABLE PAPER AUTO SUBMIT</code> and <code>I UNDERSTAND THIS PLACES PAPER ORDERS</code> before saving, and the arm expires automatically.</div>
       <div class="mini-note" style="margin-bottom: 12px; color: #475569;"><strong>Arm status:</strong>
         <% if (automationSettings.autoSubmit && automationSettings.autoSubmitArmedUntil && new Date(automationSettings.autoSubmitArmedUntil).getTime() > Date.now()) { %>
           Armed until <%= new Date(automationSettings.autoSubmitArmedUntil).toLocaleTimeString() %>.
@@ -115,7 +115,8 @@
           <label>Timeframe<select name="timeframe"><% automationTimeframes.forEach((timeframe) => { %><option value="<%= timeframe %>" <%= automationSettings.timeframe === timeframe ? 'selected' : '' %>><%= timeframe %></option><% }) %></select></label>
         </div>
         <div class="three-col">
-          <label style="grid-column: span 2;">Type to confirm auto-submit<input type="text" name="autoSubmitConfirmText" placeholder="ENABLE PAPER AUTO SUBMIT" autocomplete="off" /></label>
+          <label>Type to confirm auto-submit<input type="text" name="autoSubmitConfirmText" placeholder="ENABLE PAPER AUTO SUBMIT" autocomplete="off" /></label>
+          <label>Type to acknowledge paper order placement<input type="text" name="autoSubmitRiskAckText" placeholder="I UNDERSTAND THIS PLACES PAPER ORDERS" autocomplete="off" /></label>
           <label>Arm window minutes<input type="number" name="autoSubmitArmMinutes" min="1" max="240" value="<%= automationSettings.autoSubmitArmMinutes ?? 20 %>" /></label>
         </div>
         <div class="three-col">

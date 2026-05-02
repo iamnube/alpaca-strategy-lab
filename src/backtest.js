@@ -102,6 +102,60 @@ function sliceByDate(bars, start, end) {
   })
 }
 
+function getEtParts(date) {
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  })
+  const parts = formatter.formatToParts(date)
+  const hour = Number(parts.find((part) => part.type === 'hour')?.value ?? 0)
+  const minute = Number(parts.find((part) => part.type === 'minute')?.value ?? 0)
+  return { hour, minute }
+}
+
+function isWithinAllowedSessionWindow(date, settings) {
+  const { hour, minute } = getEtParts(date)
+  const hourValue = hour + (minute / 60)
+  const startHour = Number(settings.allowedStartHour ?? 0)
+  const endHour = Number(settings.allowedEndHour ?? 24)
+  return hourValue >= startHour && hourValue < endHour
+}
+
+function isWithinMiddayWindow(date, settings) {
+  if (!settings.avoidMidday) return false
+  const { hour, minute } = getEtParts(date)
+  const hourValue = hour + (minute / 60)
+  const startHour = Number(settings.middayStartHour ?? 11)
+  const endHour = Number(settings.middayEndHour ?? 13)
+  return hourValue >= startHour && hourValue < endHour
+}
+
+function isWithinOpenGuardWindow(date, settings) {
+  const guardMinutes = Number(settings.openGuardMinutes ?? 0)
+  if (!guardMinutes) return false
+  const { hour, minute } = getEtParts(date)
+  const minutesSinceOpen = ((hour * 60) + minute) - ((9 * 60) + 30)
+  return minutesSinceOpen >= 0 && minutesSinceOpen <= guardMinutes
+}
+
+function isWithinCloseAvoidWindow(date, settings) {
+  const avoidMinutes = Number(settings.closeHourAvoidMinutes ?? 0)
+  if (!avoidMinutes) return false
+  const { hour, minute } = getEtParts(date)
+  const minutesToClose = ((16 * 60) - ((hour * 60) + minute))
+  return minutesToClose >= 0 && minutesToClose <= avoidMinutes
+}
+
+function passesSessionFilters(timestamp, settings) {
+  const date = new Date(timestamp)
+  return isWithinAllowedSessionWindow(date, settings)
+    && !isWithinMiddayWindow(date, settings)
+    && !isWithinOpenGuardWindow(date, settings)
+    && !isWithinCloseAvoidWindow(date, settings)
+}
+
 function backtestSymbol({ symbol, bars, settings, lookaheadBars = 12, fillModel = 'touch', signalFn }) {
   const results = []
   const minWindow = Math.max(6, settings.lookbackBars)
@@ -113,6 +167,7 @@ function backtestSymbol({ symbol, bars, settings, lookaheadBars = 12, fillModel 
 
     const confirmationTs = evalResult.confirmationBar?.timestamp
     if (!confirmationTs) continue
+    if (!passesSessionFilters(confirmationTs, settings)) continue
     if (results.length && results[results.length - 1].confirmationTs === confirmationTs) continue
 
     const future = bars.slice(i + 1, i + 1 + lookaheadBars)
@@ -255,6 +310,13 @@ async function main() {
   settings.takeProfitBufferPercent = args.takeProfitBufferPercent ? Number(args.takeProfitBufferPercent) : 0
   settings.reclaimAtrMultiplier = args.reclaimAtrMultiplier ? Number(args.reclaimAtrMultiplier) : 0
   settings.cooldownBars = args.cooldownBars ? Number(args.cooldownBars) : 0
+  settings.allowedStartHour = args.allowedStartHour ? Number(args.allowedStartHour) : settings.allowedStartHour
+  settings.allowedEndHour = args.allowedEndHour ? Number(args.allowedEndHour) : settings.allowedEndHour
+  settings.avoidMidday = args.avoidMidday ? String(args.avoidMidday) === 'true' : settings.avoidMidday
+  settings.middayStartHour = args.middayStartHour ? Number(args.middayStartHour) : settings.middayStartHour
+  settings.middayEndHour = args.middayEndHour ? Number(args.middayEndHour) : settings.middayEndHour
+  settings.openGuardMinutes = args.openGuardMinutes ? Number(args.openGuardMinutes) : settings.openGuardMinutes
+  settings.closeHourAvoidMinutes = args.closeHourAvoidMinutes ? Number(args.closeHourAvoidMinutes) : settings.closeHourAvoidMinutes
 
   // Optional: drop known-bad symbols (comma-separated).
   const excludeSymbols = new Set(String(args.excludeSymbols || '').split(',').map((s) => s.trim().toUpperCase()).filter(Boolean))
