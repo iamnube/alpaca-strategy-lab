@@ -17,13 +17,24 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, '..');
 const defaultWatchlist = [
-  'WMT', 'MSFT', 'GOOGL', 'NVDA', 'MA',
+  'AAPL', 'MU', 'MA', 'ABBV', 'NVDA', 'AMD', 'UBER', 'PANW', 'CAT', 'MSFT',
+  'XOM', 'LLY', 'WMT', 'SHOP', 'TSLA', 'PLTR', 'TT', 'BA', 'AXP', 'SCHW',
+  'COST', 'PH', 'MS', 'CRM', 'GE', 'GOOGL', 'V', 'GS', 'WFC', 'JNJ',
+  'MRK', 'UNH', 'MCD', 'LOW', 'ETN', 'INTU', 'BAC', 'NFLX', 'HD', 'CVX',
+  'BLK', 'AMZN', 'DE', 'META', 'NOW', 'ADBE', 'SLB', 'ORCL', 'AVGO', 'JPM',
 ];
 const leadStrategyPreset = {
-  name: 'Lead late-session base-hit',
-  description: 'Walk-forward winner so far: focused five-name basket, fresh 1-bar confirmation, and a 2 PM to 4 PM ET scan window.',
+  name: 'Lead ranked 50 late-session sweep basket',
+  description: 'Ranked 50-name paper scan universe with the best current late-session sweep settings from the latest backtests.',
   watchlist: defaultWatchlist,
-  automation: automationDefaults,
+  automation: {
+    ...automationDefaults,
+    confirmationBodyToRangeRatio: 0.2,
+    reclaimAtrMultiplier: 0.2,
+    rewardToRisk: 0.9,
+    maxWatchlistSymbols: 50,
+    symbolsPerCycle: 10,
+  },
 };
 const maxJournalEntries = 200;
 
@@ -158,11 +169,11 @@ const automationSettingsSchema = z.object({
   etfMinSweepPercent: z.coerce.number().min(0.01).max(5),
   minBodyToRangeRatio: z.coerce.number().min(0.05).max(1),
   confirmationBodyToRangeRatio: z.coerce.number().min(0.05).max(1),
-  rewardToRisk: z.coerce.number().min(1).max(10),
+  rewardToRisk: z.coerce.number().min(0.5).max(10),
   maxOpenPositions: z.coerce.number().min(1).max(20),
   maxConcurrentOrdersPerSymbol: z.coerce.number().min(1).max(5),
-  maxWatchlistSymbols: z.coerce.number().min(1).max(30),
-  symbolsPerCycle: z.coerce.number().min(1).max(30),
+  maxWatchlistSymbols: z.coerce.number().min(1).max(50),
+  symbolsPerCycle: z.coerce.number().min(1).max(50),
   riskPerTrade: z.coerce.number().min(1).max(10000),
   stopBufferPercent: z.coerce.number().min(0).max(5),
   takeProfitBufferPercent: z.coerce.number().min(0).max(5),
@@ -440,7 +451,7 @@ function buildWorkflow({ credsConfigured, watchlist, currentJournal, account, au
     {
       label: 'Current workflow',
       status: latest || automationCandidates.length ? 'ready' : 'review',
-      detail: latest ? `Latest active-basket idea: ${latest.symbol} ${latest.side}, ${latest.status}.` : automationCandidates.length ? `Latest automation candidate: ${automationCandidates[0].symbol} ${automationCandidates[0].side}.` : 'No current-basket journal ideas yet. The lead setup is starting clean from the active watchlist.',
+      detail: latest ? `Latest active-watchlist idea: ${latest.symbol} ${latest.side}, ${latest.status}.` : automationCandidates.length ? `Latest automation candidate: ${automationCandidates[0].symbol} ${automationCandidates[0].side}.` : 'No active-watchlist journal ideas yet. The ranked setup is starting clean from the active watchlist.',
     },
     {
       label: 'Account health',
@@ -702,7 +713,7 @@ function createApp({ storage = createStorage(), createAlpacaClient = createDefau
 
   app.post('/watchlist', async (req, res) => {
     await storage.ensureDataFiles();
-    const watchlist = String(req.body.watchlist || '').split(',').map((symbol) => symbol.trim().toUpperCase()).filter(Boolean).slice(0, 30);
+    const watchlist = String(req.body.watchlist || '').split(',').map((symbol) => symbol.trim().toUpperCase()).filter(Boolean).slice(0, 50);
     const settings = await storage.readSettings();
     await storage.saveSettings({ ...settings, watchlist: watchlist.length ? [...new Set(watchlist)] : defaultWatchlist });
     res.redirect('/?success=Watchlist updated');

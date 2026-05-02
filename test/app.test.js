@@ -129,10 +129,10 @@ test('POST /watchlist normalizes, deduplicates, and persists symbols', async () 
   assert.equal(settings.automation.enabled, false);
 });
 
-test('POST /watchlist accepts expanded diversified lists up to 30 symbols', async () => {
+test('POST /watchlist accepts expanded diversified lists up to 50 symbols', async () => {
   const storage = await createTempStorage();
   const app = createApp({ storage, createAlpacaClient: () => null, startAutomation: false });
-  const symbols = Array.from({ length: 32 }, (_, index) => `SYM${index + 1}`);
+  const symbols = Array.from({ length: 52 }, (_, index) => `SYM${index + 1}`);
 
   const response = await request(app)
     .post('/watchlist')
@@ -141,9 +141,9 @@ test('POST /watchlist accepts expanded diversified lists up to 30 symbols', asyn
 
   assert.equal(response.status, 302);
   const settings = JSON.parse(await fs.readFile(storage.settingsPath, 'utf8'));
-  assert.equal(settings.watchlist.length, 30);
+  assert.equal(settings.watchlist.length, 50);
   assert.deepEqual(settings.watchlist.slice(0, 3), ['SYM1', 'SYM2', 'SYM3']);
-  assert.deepEqual(settings.watchlist.slice(-2), ['SYM29', 'SYM30']);
+  assert.deepEqual(settings.watchlist.slice(-2), ['SYM49', 'SYM50']);
 });
 
 test('POST /automation/preset/lead reapplies the lead paper preset', async () => {
@@ -183,11 +183,15 @@ test('POST /automation/preset/lead reapplies the lead paper preset', async () =>
 
   assert.equal(response.status, 302);
   const settings = await storage.readSettings();
-  assert.deepEqual(settings.watchlist, ['WMT', 'MSFT', 'GOOGL', 'NVDA', 'MA']);
+  assert.deepEqual(settings.watchlist, defaultWatchlist);
   assert.equal(settings.automation.enabled, false);
   assert.equal(settings.automation.autoSubmit, false);
   assert.equal(settings.automation.signalWindowBars, 1);
-  assert.equal(settings.automation.rewardToRisk, 1);
+  assert.equal(settings.automation.rewardToRisk, 0.9);
+  assert.equal(settings.automation.confirmationBodyToRangeRatio, 0.2);
+  assert.equal(settings.automation.reclaimAtrMultiplier, 0.2);
+  assert.equal(settings.automation.maxWatchlistSymbols, 50);
+  assert.equal(settings.automation.symbolsPerCycle, 10);
   assert.equal(settings.automation.allowedStartHour, 14);
   assert.equal(settings.automation.allowedEndHour, 16);
 });

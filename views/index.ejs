@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Alpaca Strategy Lab</title>
+  <title>Alpaca Strategy Lab — Ranked 50 Scalp Scan</title>
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
@@ -11,7 +11,7 @@
     <div>
       <p class="eyebrow">Paper trading only</p>
       <h1>Alpaca Strategy Lab</h1>
-      <p class="muted">Local liquidity-sweep lab with paper-only automation, guardrails, journaling, and execution logs.</p>
+      <p class="muted">Local ranked-50 late-session scalp scan with paper-only automation, guardrails, journaling, and execution logs.</p>
     </div>
     <div class="badge <%= credsConfigured ? 'good' : 'warn' %>">
       <strong><%= credsConfigured ? 'Paper account connected' : 'No API creds yet' %></strong>
@@ -26,11 +26,11 @@
   <main class="grid">
     <section class="card wide stats-band">
       <div><span>Total ideas</span><strong><%= journalSummary.total %></strong></div>
-      <div><span>Active-basket ideas</span><strong><%= currentJournalSummary.total %></strong></div>
+      <div><span>Active-watchlist ideas</span><strong><%= currentJournalSummary.total %></strong></div>
       <div><span>Auto candidates</span><strong><%= automationCandidates.length %></strong></div>
       <div><span>Auto status</span><strong><%= automationSettings.enabled ? (automationSettings.autoSubmit ? 'Enabled + submit' : 'Enabled') : 'Disabled' %></strong></div>
       <div><span>Last automation run</span><strong><%= automationStatus.lastRunAt ? new Date(automationStatus.lastRunAt).toLocaleTimeString() : '—' %></strong></div>
-      <div><span>Active-basket expectancy</span><strong><%= currentJournalSummary.expectancyR !== null ? currentJournalSummary.expectancyR + 'R' : '—' %></strong></div>
+      <div><span>Active-watchlist expectancy</span><strong><%= currentJournalSummary.expectancyR !== null ? currentJournalSummary.expectancyR + 'R' : '—' %></strong></div>
       <div><span>Open positions</span><strong><%= positions.length %></strong></div>
       <div><span>Open orders</span><strong><%= orders.length %></strong></div>
       <div><span>Legacy ideas</span><strong><%= legacyJournalSummary.total %></strong></div>
@@ -73,7 +73,7 @@
             <button type="submit">Run scan now</button>
           </form>
           <form action="/automation/preset/lead" method="post" class="inline-form compact-actions">
-            <button type="submit"><%= activePreset ? 'Re-apply lead preset' : 'Apply lead preset' %></button>
+            <button type="submit"><%= activePreset ? 'Re-apply ranked 50 preset' : 'Apply ranked 50 preset' %></button>
           </form>
         </div>
       </div>
@@ -132,12 +132,12 @@
         <div class="three-col">
           <label>Allowed start hour ET<input type="number" name="allowedStartHour" min="0" max="23" value="<%= automationSettings.allowedStartHour ?? 14 %>" /></label>
           <label>Allowed end hour ET<input type="number" name="allowedEndHour" min="1" max="24" value="<%= automationSettings.allowedEndHour ?? 16 %>" /></label>
-          <div class="mini-note">Lead paper setup currently focuses on late-session scans.</div>
+          <div class="mini-note">Lead paper setup currently scans a ranked 50-name universe during the late session.</div>
         </div>
         <div class="three-col">
           <label>Risk per trade ($)<input type="number" name="riskPerTrade" step="0.01" value="<%= automationSettings.riskPerTrade %>" /></label>
-          <label>Watchlist cap<input type="number" name="maxWatchlistSymbols" min="1" max="30" value="<%= automationSettings.maxWatchlistSymbols %>" /></label>
-          <label>Symbols per cycle<input type="number" name="symbolsPerCycle" min="1" max="30" value="<%= automationSettings.symbolsPerCycle || automationSettings.maxWatchlistSymbols %>" /></label>
+          <label>Watchlist cap<input type="number" name="maxWatchlistSymbols" min="1" max="50" value="<%= automationSettings.maxWatchlistSymbols %>" /></label>
+          <label>Symbols per cycle<input type="number" name="symbolsPerCycle" min="1" max="50" value="<%= automationSettings.symbolsPerCycle || automationSettings.maxWatchlistSymbols %>" /></label>
         </div>
         <div class="three-col">
           <label>Min sweep % of price<input type="number" name="minSweepPercent" step="0.01" value="<%= automationSettings.minSweepPercent %>" /></label>
@@ -171,7 +171,7 @@
         </div>
         <button type="submit">Save automation settings</button>
       </form>
-      <p class="mini-note">Automation stays paper-only. The current default profile is a late-session base-hit variant: tight 1R exits, 1-bar confirmation freshness, and a focused five-name watchlist.</p>
+      <p class="mini-note">Automation stays paper-only. The current default profile is a ranked 50-name late-session scalp scan: 0.9R targets, fresh 1-bar confirmation, and stronger reclaim/body filters.</p>
       <div class="mini-note">One trade can create multiple visible Alpaca orders when brackets are used: an entry plus linked take-profit and stop-loss legs. So a burst of buy/sell rows does not always mean the strategy opened that many separate trades.</div>
       <div class="stats compact-stats top-gap">
         <div><span>Last summary</span><strong><%= automationStatus.lastSummary || '—' %></strong></div>
@@ -474,7 +474,7 @@
           <% }) %>
         </div>
       <% } else { %>
-        <p class="muted">Current-basket analytics fill in as you log or close ideas for the active five-symbol setup.</p>
+        <p class="muted">Active-watchlist analytics fill in as you log or close ideas from the ranked 50-name setup.</p>
       <% } %>
     </section>
 
@@ -520,7 +520,7 @@
             </form>
           </article>
         <% }) } else { %>
-          <p class="muted">No active-basket journal entries yet. Older experiments are kept below under legacy history.</p>
+          <p class="muted">No active-watchlist journal entries yet. Older experiments are kept below under legacy history.</p>
         <% } %>
       </div>
     </section>
@@ -528,7 +528,7 @@
     <section class="card wide">
       <h2>Legacy journal history</h2>
       <% if (legacyJournal.length) { %>
-        <p class="mini-note">These entries came from older baskets or earlier automation experiments. They are preserved for reference, but separated so they do not muddy the active lead setup.</p>
+        <p class="mini-note">These entries came from older watchlists or earlier automation experiments. They are preserved for reference, but separated so they do not muddy the active ranked setup.</p>
         <div class="journal-list">
           <% legacyJournal.forEach((entry) => { %>
             <article class="journal-entry">
@@ -545,7 +545,7 @@
           <% }) %>
         </div>
       <% } else { %>
-        <p class="muted">No legacy entries are currently sitting outside the active basket.</p>
+        <p class="muted">No legacy entries are currently sitting outside the active watchlist.</p>
       <% } %>
     </section>
   </main>

@@ -79,15 +79,15 @@ This is still intentionally understandable, not a black-box trading engine.
 
 ## Current default watchlist
 
-The default/persisted watchlist is now a tighter late-session paper basket built from the strongest symbols in the recent walk-forward tests:
+The default/persisted watchlist is now a ranked 50-name late-session paper scan universe so the app has more options to rotate through while still prioritizing the strongest symbols first:
 
-- WMT
-- MSFT
-- GOOGL
-- NVDA
-- MA
+- AAPL, MU, MA, ABBV, NVDA, AMD, UBER, PANW, CAT, MSFT
+- XOM, LLY, WMT, SHOP, TSLA, PLTR, TT, BA, AXP, SCHW
+- COST, PH, MS, CRM, GE, GOOGL, V, GS, WFC, JNJ
+- MRK, UNH, MCD, LOW, ETN, INTU, BAC, NFLX, HD, CVX
+- BLK, AMZN, DE, META, NOW, ADBE, SLB, ORCL, AVGO, JPM
 
-This keeps the scanner focused on the current lead setup instead of spreading attention across the broader ETF-heavy list.
+The strongest tested small basket is still tighter than this, but the ranked 50-name universe gives the scanner more chances to find paper setups on quieter days.
 
 ## Requirements
 
@@ -151,18 +151,18 @@ Then open:
 
 - poll interval: 600 seconds
 - timeframe: 15 minute bars
-- watchlist cap: 5 symbols
-- symbols per cycle: 5
+- watchlist cap: 50 symbols
+- symbols per cycle: 10
 - watchlist rotation: enabled
 - auto-submit: off in persisted settings
 - allowed session: 2 PM to 4 PM ET
 - minimum sweep: 0.03% of price, 0.02% for supported ETFs
 - minimum body/range ratio: 0.22
-- confirmation body/range ratio: 0.18
-- reclaim ATR multiplier: 0.10
-- reward to risk: 1.0R
+- confirmation body/range ratio: 0.20
+- reclaim ATR multiplier: 0.20
+- reward to risk: 0.9R
 
-This lowers the default automation load and aligns the paper runner with the current lead strategy candidate from the walk-forward backtests.
+This keeps the automation broad enough to surface more opportunities while still using the current best-performing late-session scalp-like settings.
 
 ## Workflow and journaling features
 
