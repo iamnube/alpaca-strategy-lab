@@ -10,6 +10,7 @@
     "backtest": "node src/backtest.js",
     "report:journal": "node scripts/summarize-journal.mjs",
     "reconcile:journal": "node scripts/reconcile-journal-with-alpaca.mjs",
+    "session:ready": "node scripts/session-ready.mjs",
     "test": "node --test",
     "lint": "eslint .",
     "check": "npm run lint && npm test"

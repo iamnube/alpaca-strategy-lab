@@ -46,5 +46,6 @@ Interpretation:
   - If expectancy turns clearly negative, test a narrower late-session start before changing symbol ranking or core signal logic.
 
 ## Quick commands
+- Session readiness: `npm run session:ready`
 - Baseline: `npm run report:journal`
 - Reconcile older entries: `npm run reconcile:journal -- --apply`
