@@ -9,6 +9,7 @@
     "fetch:bars": "node scripts/fetch-bars.mjs",
     "backtest": "node src/backtest.js",
     "report:journal": "node scripts/summarize-journal.mjs",
+    "reconcile:journal": "node scripts/reconcile-journal-with-alpaca.mjs",
     "test": "node --test",
     "lint": "eslint .",
     "check": "npm run lint && npm test"

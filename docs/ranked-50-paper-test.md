@@ -58,6 +58,13 @@ Run this before and after a paper session:
 
 It prints the current entry count, review backlog, stale open ideas, and any realized win-rate / expectancy data already captured in the journal.
 
+## Backlog cleanup helper
+For older auto-submitted paper entries, you can reconcile likely outcomes from Alpaca paper order history:
+- dry run: `npm run reconcile:journal`
+- write suggested reviews: `npm run reconcile:journal -- --apply`
+
+This currently targets stale `auto-submitted` entries and suggests `won`, `lost`, `scratched`, or `canceled` when the Alpaca order flow is clear enough to match by symbol, side, price, and timing.
+
 ## Decision rule after 1-2 sessions
 - Keep the preset if signals look clean and outcomes are at least roughly breakeven.
 - Tighten filters if there is too much noise.
